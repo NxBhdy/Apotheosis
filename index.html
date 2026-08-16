@@ -768,6 +768,63 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   .panel h3 { margin-bottom: .4rem; padding-bottom: .25rem; }
 }
 
+/* ---- phone: the panel is furniture, not a drawer ----
+   It used to slide up on select and down on action, which meant the board was
+   either covered or the controls were hidden. It is now permanently docked,
+   sized as a share of the screen, and scrolls internally — so the map sits
+   above it at a stable size and never jumps. */
+
+@media (max-width: 900px) {
+  #board { grid-template-rows: 1fr auto; }
+  #map-pane { padding-bottom: 0; }             /* nothing overlaps it now */
+
+  #side {
+    position: static;                           /* back in the grid flow */
+    transform: none;
+    height: 38vh;
+    max-height: 38vh;
+    grid-row: 2;
+    border-radius: 0;
+    box-shadow: 0 -8px 20px rgba(0,0,0,.45);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    grid-template-rows: auto auto auto auto auto auto;
+  }
+
+  /* scrolling is expected here, so the reference material comes back */
+  #side #troopkey, #side #log { display: block; }
+  #side #log { max-height: 9rem; }
+
+  /* the handle is a sticky status line now, not a control */
+  #sheet-handle { cursor: default; }
+  #sheet-handle .grip, #sheet-handle .chev { display: none; }
+
+  /* three numbers per player, colour-coded to the panel's stat tiles */
+  .tb-p .n { font-family: var(--f-mono); font-size: .68rem; font-weight: 700; line-height: 1; }
+  .tb-p .n.lv { color: var(--ink); }
+  .tb-p .n.tr { color: var(--bronze); }
+  .tb-p .n.vp { color: var(--verdigris); }
+  .tb-p { gap: .2rem; padding: .15rem .3rem; }
+  .tb-players { gap: .2rem; }
+  .tb-right .ghost { min-width: 1.8rem; padding: .28rem .3rem; }
+}
+
+/* ---- phone: most-used first ----
+   In source order the panel runs stats → selection → actions → key →
+   chronicle, which put the action buttons 721px down a 309px panel. On a
+   phone the order is inverted to match how often you touch each one. */
+
+@media (max-width: 900px) {
+  #side { display: flex; flex-direction: column; }
+  #sheet-handle { order: 0; }
+  #actions      { order: 1; }   /* every turn */
+  #selection    { order: 2; }   /* what you just tapped */
+  #you          { order: 3; }   /* glanceable, already in the top bar */
+  #troopkey     { order: 4; }   /* reference */
+  #log          { order: 5; }   /* history */
+  #side > .panel { flex: 0 0 auto; }
+}
+
 </style>
 </head>
 <body>
@@ -3977,20 +4034,12 @@ const UI = {
 
   phone() { return matchMedia('(max-width: 900px)').matches; },
 
-  sheet(open) {
-    const el = $('#side');
-    if (!el) return;
-    if (!UI.phone()) { el.classList.remove('open'); return; }
-    el.classList.toggle('open', !!open);
-  },
+  sheet() { /* retained so existing call sites stay valid; panel is always visible */ },
 
-  initSheet() {
-    const h = $('#sheet-handle');
-    if (h && !h.dataset.bound) {
-      h.dataset.bound = '1';
-      h.addEventListener('click', () => UI.sheet(!$('#side').classList.contains('open')));
-    }
-  },
+  /* The panel used to slide up and down. It is now permanently docked and
+     scrolls internally, so the handle is a sticky status line rather than a
+     control — nothing to open, nothing to remember to close. */
+  initSheet() {},
 
   /* the handle doubles as a status line, so a collapsed sheet still tells you
      whose turn it is and how many actions are left */
@@ -4065,11 +4114,16 @@ const UI = {
       const s = Rules.scoreFor(i);
 
       if (compact) {
+        /* Renown, Tribute and score, colour-matched to the stat tiles in the
+           panel so they read without labels — labels are what made this bar
+           four rows tall. Tap for the same numbers spelled out. */
         const tip = `<b>${esc(p.name)}</b>${AI.isAI(i) ? ' — ' + esc(AI.personality(i).name) : ''}`
           + `<br>Renown ${p.level} · ${p.tribute} Tribute · ${s.total} VP`;
         return `<div class="${cls.join(' ')}" data-tip="${tip}">
           <span class="dot" style="background:${p.colour.hex}"></span>
-          <span class="st">${s.total}</span>
+          <span class="n lv">${p.level}</span>
+          <span class="n tr">${p.tribute}</span>
+          <span class="n vp">${s.total}</span>
         </div>`;
       }
 
