@@ -679,8 +679,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   .tb-right .ghost { padding: .3rem .5rem; font-size: .72rem; }
 
   /* thumb-sized controls */
-  .actions-grid { grid-template-columns: 1fr 1fr; gap: .5rem; }
-  #actions button { min-height: 3rem; }
+  .actions-grid { grid-template-columns: 1fr 1fr; gap: .4rem; }
+  /* Explicit px, not rem: the root font here is 15px, so 2.85rem computed to
+     42.75px and quietly landed under the 44px touch minimum. Touch targets are
+     a physical measurement — state them physically. */
+  #actions button { min-height: 46px; }
   .slider-row input[type=range] { height: 8px; }
   .slider-row input[type=range]::-webkit-slider-thumb { width: 1.6rem; height: 1.6rem; }
   .slider-row input[type=range]::-moz-range-thumb { width: 1.6rem; height: 1.6rem; }
@@ -705,6 +708,64 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 @media (hover: none) {
   [data-tip] { cursor: pointer; }
   #tip { max-width: min(20rem, calc(100vw - 1.5rem)); }
+}
+
+/* ---- phone: give the board its screen back ----
+   Chrome was 269px of 812 (33%) before the map got a pixel: a top bar that
+   wrapped onto four rows, plus a phase strip and a hint bar saying overlapping
+   things. Target is ~11%. */
+
+@media (max-width: 900px) {
+  #topbar {
+    flex-wrap: nowrap;             /* one row, never four */
+    gap: .5rem;
+    padding: .3rem .5rem;
+    min-height: 0;
+  }
+  .tb-title { display: none; }     /* you know what game you are in */
+  .tb-left  { gap: .4rem; flex: 0 0 auto; }
+  .tb-round { font-size: .62rem; letter-spacing: .06em; white-space: nowrap; }
+
+  .tb-players { flex: 1 1 auto; flex-wrap: nowrap; gap: .25rem; justify-content: center; }
+  .tb-p {
+    padding: .15rem .35rem; gap: .25rem; font-size: .7rem;
+    border-radius: 10px;
+  }
+  .tb-p .dot { width: .5rem; height: .5rem; }
+  .tb-p .st  { font-size: .72rem; color: var(--ink); font-weight: 700; }
+  .tb-p .ai-tag { display: none; }
+
+  .tb-right { flex: 0 0 auto; gap: .25rem; }
+  .tb-right .ghost {
+    padding: .28rem .4rem; font-size: 0;      /* label hidden, icon remains */
+    min-width: 2rem; line-height: 1;
+  }
+  .tb-right .ghost::after { font-size: .85rem; }
+  #btn-speed::after { content: '»'; }
+  #btn-help::after  { content: '?'; }
+  #btn-rules::after { content: '☰'; }
+
+  /* The phase strip repeated what the hint bar and the sheet handle already
+     say, for 45px. The hint bar is the more useful of the two. */
+  #phase-strip { display: none; }
+  #hintbar { padding: .35rem .6rem; line-height: 1.35; }
+
+  /* The sheet holds only what you act on. The troop key and the chronicle are
+     reference and history — both still reachable from the ☰ button — and
+     together they were 182px of forced scrolling. */
+  #side #troopkey, #side #log { display: none; }
+  #side { grid-template-rows: auto auto auto auto; max-height: 56vh; }
+
+  /* a tighter stat block: this alone was 181px */
+  #you { padding: .5rem .7rem; }
+  #you .stats { gap: .35rem; margin-bottom: .35rem; }
+  #you .stat { padding: .25rem .4rem; }
+  #you .stat .v { font-size: 1rem; }
+  #you .you-head { margin-bottom: .3rem; }
+  #you .you-patron { display: none; }        /* shown on tap via the tooltip */
+  #you .owned { margin-top: .4rem; padding-top: .35rem; }
+  #selection, #actions { padding: .5rem .7rem; }
+  .panel h3 { margin-bottom: .4rem; padding-bottom: .25rem; }
 }
 
 </style>
@@ -3986,13 +4047,32 @@ const UI = {
 
   /* ================= top bar ================= */
 
+  /* On a phone the full bar wrapped onto four rows and ate 179px — 22% of the
+     screen before the board got any. The compact form keeps only what you
+     cannot infer from elsewhere: the round, and each rival's colour and score.
+     Names, levels, treasuries and AI tags all live in the sheet or a tap. */
   renderTop() {
-    $('#tb-round').textContent = `Round ${G.round} of ${ROUND_LIMIT} · Turn ${G.turnIndex + 1}`;
+    const compact = UI.phone();
+
+    $('#tb-round').textContent = compact
+      ? `R${G.round}/${ROUND_LIMIT}`
+      : `Round ${G.round} of ${ROUND_LIMIT} · Turn ${G.turnIndex + 1}`;
+
     $('#tb-players').innerHTML = G.players.map((p, i) => {
       const cls = ['tb-p'];
       if (i === UI.actingIndex() && G.phase !== 'gameover') cls.push('active');
       if (p.surrendered) cls.push('out');
       const s = Rules.scoreFor(i);
+
+      if (compact) {
+        const tip = `<b>${esc(p.name)}</b>${AI.isAI(i) ? ' — ' + esc(AI.personality(i).name) : ''}`
+          + `<br>Renown ${p.level} · ${p.tribute} Tribute · ${s.total} VP`;
+        return `<div class="${cls.join(' ')}" data-tip="${tip}">
+          <span class="dot" style="background:${p.colour.hex}"></span>
+          <span class="st">${s.total}</span>
+        </div>`;
+      }
+
       const tag = AI.isAI(i)
         ? `<span class="ai-tag" title="${esc(AI.personality(i).blurb)}">${esc(AI.personality(i).name)}</span>`
         : '';
