@@ -913,9 +913,25 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   100% { opacity: 0; }
 }
 
+/* ---- phone: announce where the player is actually looking ----
+   Measured at 375x812: announcements were landing at y33-39 while the action
+   buttons sat at y533-757. On a phone the panel is docked at the bottom and
+   deliberately ordered actions-first, so both thumb and eye live in the lower
+   third — and the feedback was 500px away at the top of the map. It was being
+   missed entirely, which is the whole point of the feature.
+
+   Anchored to the FOOT of the map instead, directly above the panel. Flex
+   direction stays `column` so the newest card (appended last) sits closest to
+   the panel, nearest the eye. Desktop keeps the top position: there the map is
+   large, the sidebar is off to the right, and the bottom of the board is no
+   nearer the controls than the top. */
 @media (max-width: 900px) {
-  #announce { padding: .4rem .45rem 0; gap: .3rem; }
-  .fx-card  { width: 100%; }
+  #announce {
+    top: auto; bottom: 0;
+    padding: 0 .45rem .4rem;
+    gap: .3rem;
+  }
+  .fx-card { width: 100%; }
 }
 
 /* ---- phone: most-used first ----
