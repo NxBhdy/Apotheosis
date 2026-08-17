@@ -169,7 +169,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 /* ---------------- board ---------------- */
 
 #board { display: grid; grid-template-columns: 1fr 22rem; min-height: 0; }
-#map-pane { display: grid; grid-template-rows: 1fr auto; min-height: 0; min-width: 0; }
+/* position: relative so the announcement layer can sit over the board without
+   escaping into the sidebar on desktop. */
+#map-pane { display: grid; grid-template-rows: 1fr auto; min-height: 0; min-width: 0; position: relative; }
 #map-wrap { min-height: 0; padding: .6rem; display: grid; place-items: center; }
 #map { width: 100%; height: 100%; max-height: 100%; }
 
@@ -305,7 +307,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 .log-entry .bar { width: 3px; height: 100%; min-height: .9rem; background: transparent; border-radius: 2px; }
 .log-entry.k-round, .log-entry.k-victory { color: var(--bronze); font-weight: 650; }
 .log-entry.k-level, .log-entry.k-boon, .log-entry.k-apotheosis { color: var(--verdigris); }
-.log-entry.k-capture, .log-entry.k-fallen, .log-entry.k-champion { color: #e0b0ad; }
+.log-entry.k-capture, .log-entry.k-fallen, .log-entry.k-champion,
+.log-entry.k-championfall { color: #e0b0ad; }
 
 /* ---------------- modals ---------------- */
 
@@ -807,6 +810,112 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   .tb-p { gap: .2rem; padding: .15rem .3rem; }
   .tb-players { gap: .2rem; }
   .tb-right .ghost { min-width: 1.8rem; padding: .28rem .3rem; }
+}
+
+/* ============================================================
+   FEEDBACK LAYER  (js/feedback.js)
+
+   Announcements, refusals and stat deltas. Everything here is short, small and
+   non-blocking; the global prefers-reduced-motion rule above kills every
+   animation in this block, so each element's RESTING state is its visible one
+   and nothing depends on a keyframe having run.
+   ============================================================ */
+
+#announce {
+  position: absolute; left: 0; right: 0; top: 0;
+  display: flex; flex-direction: column; align-items: center; gap: .4rem;
+  padding: .55rem .6rem 0;
+  pointer-events: none;                 /* the board underneath stays tappable */
+  z-index: 25;                          /* under #modal-layer (40) by design */
+}
+
+.fx-card {
+  pointer-events: auto;
+  position: relative;                   /* the actor's colour bar hangs off this */
+  width: min(26rem, 100%);
+  min-height: 44px;                     /* it is tap-to-dismiss, so it is a target */
+  display: grid; grid-template-columns: 18px 1fr;
+  align-items: center; gap: .6rem;
+  padding: .45rem .75rem .45rem .8rem;
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 78%);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  box-shadow: 0 10px 26px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.045);
+  overflow: hidden; cursor: pointer;
+  animation: fx-in .18s cubic-bezier(.2,.7,.3,1) both;
+}
+.fx-card.out { opacity: 0; transform: translateY(-4px); transition: opacity .16s, transform .16s; }
+
+/* The actor's colour, same convention as the chronicle. Absolute rather than a
+   grid cell: a stretched grid item fills the CONTENT box, so inside a padded
+   card it stopped 8px short at each end and read as a floating stub. */
+.fx-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+.fx-ico { width: 18px; height: 18px; fill: currentColor; }
+.fx-txt { display: flex; flex-direction: column; gap: .05rem; min-width: 0; }
+.fx-eyebrow {
+  font-family: var(--f-mono); font-size: var(--t-micro); letter-spacing: .16em;
+  text-transform: uppercase; line-height: 1.1;
+}
+.fx-body { font-size: var(--t-small); color: var(--ink); line-height: 1.35; }
+
+/* Tone drives the icon and eyebrow only. The surface stays constant so a run
+   of announcements reads as one system rather than a traffic light. */
+.fx-gain    { color: var(--bronze); }
+.fx-loss    { color: #d98d89; }
+.fx-renown  { color: var(--verdigris); }
+.fx-coin    { color: var(--bronze-dim); }
+.fx-neutral { color: var(--ink-mid); }
+.fx-refusal { color: var(--ink-mid); }
+.fx-refusal .fx-ico { color: var(--blood); }
+.fx-refusal .fx-bar { background: var(--blood); }
+
+/* Loud events earn a lit top edge — the one visual difference between "you
+   built a Holding" and "your Champion is dead". */
+.fx-loud { border-top-color: currentColor; box-shadow: 0 12px 30px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06); }
+.fx-loud .fx-body { font-size: var(--t-body); }
+
+@keyframes fx-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- refused action ----
+   The button is aria-disabled rather than disabled, so the tap still lands and
+   the nudge marks WHICH control said no while the card says why. */
+.ghost.is-off, .primary.is-off, .danger.is-off {
+  opacity: .42; cursor: pointer;
+}
+.ghost.is-off:hover, .primary.is-off:hover, .danger.is-off:hover {
+  background: var(--surface-2); border-color: var(--line);
+}
+.refused { animation: fx-nudge .3s ease; border-color: var(--blood) !important; }
+@keyframes fx-nudge {
+  0%, 100% { transform: none; }
+  22%      { transform: translateX(-4px); }
+  48%      { transform: translateX(4px); }
+  74%      { transform: translateX(-2px); }
+}
+
+/* ---- stat delta ----
+   Ends invisible via fill-mode, so it clears itself without asking the
+   coalesced render loop for a repaint it does not otherwise need. */
+.fx-delta {
+  font-style: normal; font-family: var(--f-mono); font-size: .64rem;
+  font-weight: 700; margin-left: .3rem; vertical-align: .14em;
+  animation: fx-delta 2.4s ease-out both;
+}
+.fx-delta.up   { color: var(--verdigris); }
+.fx-delta.down { color: #d98d89; }
+@keyframes fx-delta {
+  0%   { opacity: 0; transform: translateY(3px); }
+  10%  { opacity: 1; transform: none; }
+  76%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (max-width: 900px) {
+  #announce { padding: .4rem .45rem 0; gap: .3rem; }
+  .fx-card  { width: 100%; }
 }
 
 /* ---- phone: most-used first ----
@@ -1729,6 +1838,7 @@ const Rules = {
       actionsUsed: 0,
       fortifyUsed: false,
       log: [],
+      logSeq: 0,
       pendingBoon: null,
       pendingCombat: null,
       pendingCasualty: null,
@@ -1808,7 +1918,11 @@ const Rules = {
     }
     p.championDead = true;
     p.championAt = null;
-    Rules.log(`${p.name}'s Champion falls at ${REGIONS[where].name}. There is no coming back.`, 'champion', pi);
+    /* Its own kind, not 'champion'. That kind also carries "the Champion rides
+       to X", which fires on every Champion move — one vocabulary for both meant
+       a routine march and a permanent death were indistinguishable to anything
+       reading the log. */
+    Rules.log(`${p.name}'s Champion falls at ${REGIONS[where].name}. There is no coming back.`, 'championfall', pi);
   },
   isOut(p) { return p.surrendered; },
 
@@ -2231,10 +2345,8 @@ const Rules = {
        march — it is a piece you command, not a flag that drifts along behind
        whichever stack happened to leave. */
     if (opts && opts.champion && Rules.championAt(pi, from)) {
-      if (path.length <= Rules.championMarchRange(pi)) {
-        p.championAt = to;
-        Rules.log(`${p.name}'s Champion rides to ${REGIONS[to].name}.`, 'champion', pi);
-      }
+      p.championAt = to;
+      Rules.log(`${p.name}'s Champion rides to ${REGIONS[to].name}.`, 'champion', pi);
     }
     Rules.log(`${p.name} marches to ${REGIONS[to].name}.`, 'march', pi);
     return { ok: true };
@@ -2438,8 +2550,12 @@ const Rules = {
 
   /* ---------------- log ---------------- */
 
+  /* `seq` is a monotonic stamp, not a display field. The log is unshifted and
+     capped at 140, so length is useless as a watermark — the UI needs a number
+     it can compare against to find entries it has not announced yet. The engine
+     still knows nothing about the UI; it just numbers its own events. */
   log(text, kind = 'info', player = null) {
-    G.log.unshift({ text, kind, player, round: G.round });
+    G.log.unshift({ text, kind, player, round: G.round, seq: ++G.logSeq });
     if (G.log.length > 140) G.log.pop();
   }
 };
@@ -2452,7 +2568,16 @@ const Rules = {
    Composition bends the odds; the losing player picks the dead.
    ============================================================ */
 
-function d6() { return 1 + Math.floor(Math.random() * 6); }
+/* Dice run through a swappable source so evaluation can be made repeatable.
+   In the game this is just Math.random. In the arena it is a seeded stream,
+   which lets a candidate AI and the incumbent play the SAME dice from the
+   same positions — without that, comparing two AIs means reading noise: a
+   3-4% strength difference is invisible under unpaired variance until you
+   have run about ten times as many games. */
+let RNG = Math.random;
+function setRNG(fn) { RNG = fn || Math.random; }
+
+function d6() { return 1 + Math.floor(RNG() * 6); }
 
 function stackSize(s) { return Object.values(s || {}).reduce((a, b) => a + b, 0); }
 
@@ -2731,6 +2856,13 @@ const Combat = {
     const c = G.pendingCombat;
     if (!c || c.queue.length) return;
 
+    /* A finished battle must never be re-resolved. captureAndFinish empties
+       c.force once the survivors have moved into the captured region, so a
+       second pass through here saw atkLeft === 0, decided the assault had
+       been wiped out, and ran the repulse branch — which killed the Champion
+       that had just won the fight. */
+    if (c.finished) return;
+
     const defLeft = Rules.hostCount(G.regions[c.target]);
     const atkLeft = stackSize(c.force);
 
@@ -2922,7 +3054,7 @@ const AI = {
       if (G.pendingCombat) { Combat.withdraw(); Combat.dismiss(); }
       if (G.phase !== 'gameover') UI.endTurn();
     }
-    UI.render();
+    UI.renderSoon();
     AI.kick();
   },
 
@@ -2970,6 +3102,84 @@ const AI = {
       if (o !== null && o !== pi) best = Math.max(best, AI.regionWorth(n));
     }
     return best;
+  },
+
+
+  /* ================= valuation, in victory points — PARKED, NOT IN USE
+     Kept because the reasoning is sound and the diagnosis behind it holds.
+     Wiring it in wholesale made the AI markedly worse (see CLAUDE.md).
+     =================
+
+     Every option the AI weighs is converted into the same currency: how many
+     VP it is expected to be worth by the end of the match. That sounds
+     obvious, but the previous evaluation scored a region by an invented
+     "worth" (a Shrine was 9, a Mine 7) which had no relationship to how the
+     game is actually won. The consequence was measurable: the aggressive
+     personality spent 0% of its turns building, because a Holding and an
+     attack were priced in different units and the attack always looked
+     bigger. It attacked at a 0.82 trade ratio — losing more hosts than it
+     killed — and could not tell that this was bad.
+
+     Scoring in VP makes the comparison honest: a Holding is worth VP.holding
+     plus the income it throws off, an attack is worth the ground's VP minus
+     the hosts it will cost, and the AI can now decline a bad fight in favour
+     of a good build. */
+
+  /* What one Tribute is worth in VP, via the game's own Monument rate:
+     MONUMENT_RATE tribute buys 1 XP, and a level (1 VP) costs the gap
+     between two thresholds. Deliberately derived rather than invented. */
+  tributeToVP(pi) {
+    const lvl = Math.min(MAX_LEVEL - 1, G.players[pi].level);
+    const gap = Math.max(20, XP_THRESHOLDS[lvl] - XP_THRESHOLDS[lvl - 1]);
+    return VP.renownLevel / (gap * MONUMENT_RATE);
+  },
+
+  roundsLeft() { return Math.max(1, ROUND_LIMIT - G.round + 1); },
+
+  /* A host is not VP, but it is what buys ground. Valued as a fraction of the
+     VP an average capture yields, decaying as the match ends and there is no
+     longer time to spend it. */
+  hostVP(pi) {
+    return 0.30 * Math.min(1, AI.roundsLeft() / 3);
+  },
+
+  /* What holding this ground is worth, in VP. */
+  regionVP(pi, id) {
+    const def = REGIONS[id], rs = G.regions[id];
+    const prog = AI.domainProgress(pi, id);
+    let v = 0;
+
+    /* Domains are the biggest single prize on the board. A region that
+       completes one is worth the whole VP.domain; one that merely advances a
+       domain is worth its share, weighted by how far along that domain is. */
+    v += prog.completesWith
+      ? VP.domain
+      : (VP.domain / prog.total) * (0.4 + 0.6 * (prog.held / prog.total));
+
+    if (def.type === 'throne' && rs.owner !== null && rs.owner !== pi) v += VP.rivalThrone;
+    if (rs.holding > 0) v += VP.holding * rs.holding * 0.5;      // walls you capture intact
+    else if (!REGION_TYPES[def.type].noHolding) v += VP.holding * 0.95; // you will build here
+
+    // income for the rest of the match, converted at the Monument rate
+    const inc = REGION_TYPES[def.type].income + (rs.holding ? HOLDING_INCOME[rs.holding - 1] : 0);
+    v += inc * AI.roundsLeft() * AI.tributeToVP(pi);
+
+    // ground that unlocks a unit type you cannot otherwise field
+    const raises = REGION_TYPES[def.type].raises || [];
+    if (raises.length && !Rules.regionsOf(pi).some(r => REGIONS[r].type === def.type)) v += 0.9;
+    if (def.type === 'shrine') v += XP_AWARDS.shrineTurn * AI.roundsLeft() * (VP.renownLevel / 60);
+
+    return v;
+  },
+
+  /* Expected hosts lost taking a defended region, in VP. Attacker rolls three
+     dice to the defender's two, so parity is already favourable; below about
+     0.8 of the defender's strength the trade turns against you, which is
+     exactly where the aggressive personality used to live. */
+  assaultCostVP(pi, avail, def) {
+    const edge = avail / Math.max(0.5, def);
+    const expectedLoss = def * (edge >= 1.4 ? 0.55 : edge >= 1.0 ? 0.85 : 1.35);
+    return expectedLoss * AI.hostVP(pi);
   },
 
   /* ================= action selection ================= */
@@ -3512,14 +3722,21 @@ const MapView = {
       .map(id => `<path id="tp_${id}" d="${REGIONS[id].d}"/>`).join('');
 
     /* One clip per territory so relief and the carved inner edge can be
-       painted freely and trimmed to the coastline. */
+       painted freely and trimmed to the coastline.
+
+       Every clipPath holds its own <path>, NOT a <use> pointing at one.
+       A <use> inside a <clipPath> is badly supported on mobile WebKit: the
+       clip resolves to empty, so everything inside it renders as nothing —
+       which on a phone showed as the whole landmass painting solid black with
+       only the labels and pieces surviving on top. Repeating the path data
+       costs a few KB and works everywhere. */
     const coast = `<path id="coastline" d="${CONTINENT}"/>
-      <clipPath id="clip_coast"><use href="#coastline"/></clipPath>`;
+      <clipPath id="clip_coast"><path d="${CONTINENT}"/></clipPath>`;
 
     const clips = Object.keys(REGIONS)
-      .map(id => `<clipPath id="clip_${id}"><use href="#tp_${id}"/></clipPath>`).join('')
+      .map(id => `<clipPath id="clip_${id}"><path d="${REGIONS[id].d}"/></clipPath>`).join('')
       + `<clipPath id="clip_land">`
-      + Object.keys(REGIONS).map(id => `<use href="#tp_${id}"/>`).join('')
+      + Object.keys(REGIONS).map(id => `<path d="${REGIONS[id].d}"/>`).join('')
       + `</clipPath>`;
 
     return `<defs>
@@ -4071,8 +4288,20 @@ const UI = {
 
   /* ================= main render ================= */
 
+  /* A full render rebuilds the entire board SVG. The AI takes several actions
+     per turn and called render after each one, so on an AI turn the map was
+     being torn down and rebuilt many times a second — which read as a strobe.
+     Repaints are now coalesced into one per animation frame; the board still
+     shows every AI move, it just stops flashing between them. */
+  renderSoon() {
+    if (UI._pending) return;
+    UI._pending = requestAnimationFrame(() => { UI._pending = 0; UI.render(); });
+  },
+  _pending: 0,
+
   render() {
     if (!G) return;
+    if (UI._pending) { cancelAnimationFrame(UI._pending); UI._pending = 0; }
     UI.renderTop();
     UI.renderMap();
     UI.renderYou();
@@ -4085,6 +4314,9 @@ const UI = {
     UI.initSheet();
     UI.renderSheetLabel();
     UI.checkOverlays();
+    /* Last: checkOverlays may have opened a dialog, and announcements wait
+       behind one rather than expiring under the scrim. */
+    if (UI.fx) UI.fx.pump();
   },
 
   actingIndex() {
@@ -4190,6 +4422,12 @@ const UI = {
     const pct = nextXP ? Math.min(100, ((p.xp - prevXP) / (nextXP - prevXP)) * 100) : 100;
     const s = Rules.scoreFor(p.index);
 
+    /* Deltas are keyed by seat as well as stat, so glancing at another
+       warlord's panel never reports their treasury as your gain. */
+    const dTribute = UI.fx.delta(`t${p.index}`, p.tribute);
+    const dLevel   = UI.fx.delta(`l${p.index}`, p.level);
+    const dScore   = UI.fx.delta(`s${p.index}`, s.total);
+
     $('#you').innerHTML = `
       <div class="you-head">
         <span class="dot" style="background:${p.colour.hex}"></span>
@@ -4200,11 +4438,11 @@ const UI = {
       <div class="stats" style="margin-top:.6rem">
         <div class="stat tip-left" data-tip="Your money. Full territorial income arrives at the start of your own Turn — ${Rules.incomeFor(p.index)} this Round, minus ${Rules.upkeepFor(p.index)} upkeep. Each Reaction pays a flat +${REACTION_TRICKLE}. Spend it on hosts and Holdings; it never caps.">
           <div class="k">Tribute</div>
-          <div class="v">${p.tribute}<small> +${Rules.incomeFor(p.index) - Rules.upkeepFor(p.index)}/rd</small></div></div>
+          <div class="v">${p.tribute}${dTribute}<small> +${Rules.incomeFor(p.index) - Rules.upkeepFor(p.index)}/rd</small></div></div>
         <div class="stat" data-tip="Your level. XP comes from taking ground (+${XP_AWARDS.captureFoe}), raising Holdings (+${XP_AWARDS.holding[0]}–${XP_AWARDS.holding[2]}), completing a Domain (+${XP_AWARDS.domain}), holding a Shrine (+${XP_AWARDS.shrineTurn}/Turn), taking a Throne (+${XP_AWARDS.throne}), and battle — ${XP_AWARDS.hostDestroyed} per kill AND ${XP_AWARDS.hostLost} per host you lose, so losing still levels you.">
-          <div class="k">Renown</div><div class="v">${p.level}<small> ${esc(tierFor(p.level))}</small></div></div>
+          <div class="k">Renown</div><div class="v">${p.level}${dLevel}<small> ${esc(tierFor(p.level))}</small></div></div>
         <div class="stat tip-right" data-tip="Victory points, scored at the Round limit. Complete Domain ${VP.domain} each · Holding ${VP.holding} each · Renown level ${VP.renownLevel} each · rival Throne held ${VP.rivalThrone} each.">
-          <div class="k">Score</div><div class="v">${s.total}<small> vp</small></div></div>
+          <div class="k">Score</div><div class="v">${s.total}${dScore}<small> vp</small></div></div>
       </div>
       <div class="xpbar" data-tip="Progress to Renown ${Math.min(MAX_LEVEL, p.level + 1)}. Every level offers a choice of three Boons from your patron."><span style="width:${pct}%"></span></div>
       <div style="font-size:.74rem;color:var(--ink-dim);font-family:var(--f-mono)">
@@ -4280,18 +4518,44 @@ const UI = {
     const left = isReaction ? (G.reactionActionTaken ? 0 : 1) : Rules.actionsLeft(pi);
     const budgetTag = `<span style="float:right;color:${left ? 'var(--bronze)' : 'var(--blood)'}"
         title="Renown buys more actions each Turn">${left} action${left === 1 ? '' : 's'} left</span>`;
+
+    /* Every refusal now has a sentence attached to it. A phone has no hover,
+       so the `title` that used to carry these was invisible on the primary
+       target — you got a greyed button and no explanation anywhere. */
+    const noActions = isReaction
+      ? 'Your Reaction is spent. End it and play passes on.'
+      : 'No actions left this Turn. End your Turn to collect Tribute and start again.';
+
+    const whyMarch = !id ? 'Select one of your regions first, then march from it.'
+      : !mine ? `${REGIONS[id].name} is not yours to march from.`
+      : Rules.hostCount(G.regions[id]) <= 1 ? `${REGIONS[id].name} holds a single host and must keep it — no region is ever left empty.`
+      : !canAct ? noActions : '';
+    const whyRaise = !id ? 'Select one of your regions to raise hosts there.'
+      : !mine ? `You do not hold ${REGIONS[id].name}.`
+      : !canAct ? noActions : '';
+    const whyBuild = !build.ok ? (build.why || 'Select a region you hold to raise a Holding.')
+      : !canAct ? noActions : '';
+    const whyMon = !mon.ok ? (mon.why || 'No Monument can be raised right now.')
+      : !canAct ? noActions : '';
+
+    /* aria-disabled, not disabled: a disabled button swallows the tap, and the
+       question "why can't I?" is the one moment the interface must answer. */
+    const gate = (cls, why) => why
+      ? `class="${cls} is-off" aria-disabled="true" data-why="${esc(why)}"`
+      : `class="${cls}"`;
+
     el.innerHTML = `
       <h3>${isReaction ? 'Reaction' : 'Your Turn'}${budgetTag}</h3>
       <div class="actions-grid">
-        <button class="ghost" id="a-march" ${canMarch ? '' : 'disabled'}>
+        <button ${gate('ghost', whyMarch)} id="a-march">
           ${UI.mode === 'march' ? 'Cancel march' : 'March / Attack'}
         </button>
-        <button class="ghost" id="a-raise" ${mine && canAct ? '' : 'disabled'}>Raise host</button>
-        <button class="ghost" id="a-build" ${build.ok && canAct ? '' : 'disabled'}
+        <button ${gate('ghost', whyRaise)} id="a-raise">Raise host</button>
+        <button ${gate('ghost', whyBuild)} id="a-build"
           title="${build.ok ? esc(UI.costTitle(build)) : esc(build.why || 'Select a region you hold.')}">
           Build ${build.ok ? `(${build.cost})` : 'Holding'}
         </button>
-        <button class="ghost" id="a-monument" ${mon.ok && canAct ? '' : 'disabled'}
+        <button ${gate('ghost', whyMon)} id="a-monument"
           title="${mon.ok ? 'Turn hoarded Tribute into Renown XP — ' + MONUMENT_RATE + ' Tribute per XP, once per Round.' : esc(mon.why || '')}">
           Monument</button>
         ${isReaction ? `<button class="ghost" id="a-hold">Hold / bank</button>` : ''}
@@ -4307,7 +4571,17 @@ const UI = {
       }</p>
     `;
 
-    const on = (sel, fn) => { const b = $(sel); if (b) b.addEventListener('click', fn); };
+    /* One gate for every action button: if the control carries a reason it
+       cannot run, that reason is what the tap produces. Nothing re-renders on
+       a refusal — a repaint would replace the button mid-nudge. */
+    const on = (sel, fn) => {
+      const b = $(sel);
+      if (!b) return;
+      b.addEventListener('click', () => {
+        if (b.dataset.why) { UI.fx.refuse(b, b.dataset.why); return; }
+        fn();
+      });
+    };
     on('#a-march', () => { UI.mode = UI.mode === 'march' ? 'idle' : 'march'; UI.render(); });
     on('#a-raise', () => UI.openRaise(id));
     on('#a-build', () => { Rules.buildHolding(pi, id); UI.spendAction(); });
@@ -4546,7 +4820,6 @@ const UI = {
   endTurn() {
     UI.sheet(false);
     UI.mode = 'idle';
-    G.selected = null;
     const before = UI.actingIndex();
     if (G.phase === 'reaction') Rules.endReaction(); else Rules.endTurn();
     if (G.phase === 'gameover') { UI.render(); return; }
@@ -4615,7 +4888,11 @@ const UI = {
     const chosen = {};
     const path = UI.marchTargets(from)[to] || [];
     const champHere = Rules.championAt(pi, from);
-    const champInRange = champHere && path.length <= Rules.championMarchRange(pi);
+    /* The Champion rides with the army. It used to have its own march range
+       of 1 while hosts fortify any distance across your own land, so on most
+       moves the option was greyed out and the piece got left behind. It now
+       goes wherever the stack you are sending goes. */
+    const champInRange = champHere;
     let sendChampion = false;
 
     const maxSpare = Rules.hostCount(src) - 1;
@@ -4729,75 +5006,108 @@ const UI = {
     const rs = G.regions[regionId];
     const list = Rules.availableUnits(pi);
     const order = {};
+    let committed = false;                 // guards against a double-fire
 
     const costOf = u => Rules.raiseCost(pi, regionId, u).cost;
     const totalCost = () => Object.keys(order).reduce((a, u) => a + order[u] * costOf(u), 0);
-    const affordableMore = u => Math.floor((p.tribute - totalCost()) / Math.max(1, costOf(u)));
 
-    const draw = () => {
+    /* Built ONCE. The previous version re-rendered the whole dialog on every
+       slider `input` event, which destroyed the element under the player's
+       finger mid-drag — that is what stopped the slider reaching the top of
+       its range and what let a single tap land on two different buttons.
+       Now the markup is static and only the numbers are updated in place. */
+    const rows = list.map(u => {
+      const chk = Rules.canRaise(pi, regionId, u);
+      const { cost, onType } = Rules.raiseCost(pi, regionId, u);
+      const have = Rules.countUnit(rs, u);
+      const blocked = !chk.ok;
+      const cap = blocked ? 0 : Math.min(20, Math.floor(p.tribute / Math.max(1, cost)));
+      return `<div class="slider-row raise-row ${blocked ? 'blocked' : ''}">
+        <div class="nm">
+          <span class="rn-title">${UI.troopChip(u, p.colour.hex)} ${esc(UNITS[u].name)}
+            <em class="rn-have">have ${have}</em></span>
+          <small>${esc(UNITS[u].rule)} · <b>${cost}t</b> ${onType ? '' : '(off-type ×2)'}
+            ${blocked ? '· ' + esc(chk.why || '') : ''}</small>
+        </div>
+        <input type="range" min="0" max="${cap}" value="0" step="1" data-raise="${u}"
+               ${blocked ? 'disabled' : ''} aria-label="${esc(UNITS[u].name)}">
+        <div class="ct"><b data-count="${u}">+0</b><span class="rn-sub" data-sub="${u}">0t</span></div>
+      </div>`;
+    }).join('');
+
+    UI.modal(`
+      <div class="eyebrow">Raise hosts · ${esc(REGION_TYPES[REGIONS[regionId].type].name)}</div>
+      <h2>${esc(REGIONS[regionId].name)}</h2>
+      <p>Off-type units cost double and need a Holding here.</p>
+      <div class="stepper-list">${rows}</div>
+      <div class="tally">
+        <span>Cost <b data-spent>0</b></span>
+        <span>Treasury after <b data-left>${p.tribute}</b></span>
+        <span>Hosts here after <b data-hosts>${Rules.hostCount(rs)}</b></span>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost" data-close>Cancel</button>
+        <button class="primary" id="raise-go" disabled>Raise</button>
+      </div>`);
+
+    const modal = $('#modal');
+    const sliders = [...modal.querySelectorAll('[data-raise]')];
+    const go = $('#raise-go');
+
+    const sync = () => {
       const spent = totalCost();
       const left = p.tribute - spent;
-      const rows = list.map(u => {
-        const chk = Rules.canRaise(pi, regionId, u);
-        const { cost, onType } = Rules.raiseCost(pi, regionId, u);
-        const have = Rules.countUnit(rs, u);
+
+      for (const el of sliders) {
+        const u = el.dataset.raise;
+        const cost = costOf(u);
         const want = order[u] || 0;
-        const max = Math.min(20, want + Math.max(0, affordableMore(u)));
-        const blocked = !chk.ok && want === 0;
-        return `<div class="slider-row raise-row ${blocked ? 'blocked' : ''}">
-          <div class="nm">
-            <span class="rn-title">${UI.troopChip(u, p.colour.hex)} ${esc(UNITS[u].name)}
-              <em class="rn-have">have ${have}</em></span>
-            <small>${esc(UNITS[u].rule)} · <b>${cost}t</b> ${onType ? '' : '(off-type ×2)'}
-              ${blocked ? '· ' + esc(chk.why || '') : ''}</small>
-          </div>
-          <input type="range" min="0" max="${Math.max(0, max)}" value="${want}" data-raise="${u}"
-                 ${blocked ? 'disabled' : ''} aria-label="${esc(UNITS[u].name)}">
-          <div class="ct"><b>+${want}</b><span class="rn-sub">${want * cost}t</span></div>
-        </div>`;
-      }).join('');
+        // what this unit could still afford given what the others have taken
+        const cap = Math.min(20, want + Math.max(0, Math.floor(left / Math.max(1, cost))));
+        if (+el.max !== cap && !el.disabled) el.max = cap;
+        modal.querySelector(`[data-count="${u}"]`).textContent = '+' + want;
+        modal.querySelector(`[data-sub="${u}"]`).textContent = (want * cost) + 't';
+      }
 
-      UI.modal(`
-        <div class="eyebrow">Raise hosts · ${esc(REGION_TYPES[REGIONS[regionId].type].name)}</div>
-        <h2>${esc(REGIONS[regionId].name)}</h2>
-        <p>Off-type units cost double and need a Holding here.</p>
-        <div class="stepper-list">${rows}</div>
-        <div class="tally">
-          <span>Cost <b>${spent}</b></span>
-          <span>Treasury after <b style="color:${left < 0 ? 'var(--blood)' : 'var(--bronze)'}">${left}</b></span>
-          <span>Hosts here after <b>${Rules.hostCount(rs) + Object.values(order).reduce((a, b) => a + b, 0)}</b></span>
-        </div>
-        <div class="modal-actions">
-          <button class="ghost" data-close>Cancel</button>
-          <button class="primary" id="raise-go" ${spent === 0 || left < 0 ? 'disabled' : ''}>
-            Raise for ${spent}t</button>
-        </div>`);
+      modal.querySelector('[data-spent]').textContent = spent;
+      const leftEl = modal.querySelector('[data-left]');
+      leftEl.textContent = left;
+      leftEl.style.color = left < 0 ? 'var(--blood)' : 'var(--bronze)';
+      modal.querySelector('[data-hosts]').textContent =
+        Rules.hostCount(rs) + Object.values(order).reduce((a, b) => a + b, 0);
 
-      $('#modal').querySelectorAll('[data-raise]').forEach(el => {
-        const commit = () => {
-          const u = el.dataset.raise;
-          const v = +el.value;
-          if (v > 0) order[u] = v; else delete order[u];
-          if (totalCost() > p.tribute) {            // never let the slider overdraw
-            order[u] = Math.max(0, v - 1);
-            if (!order[u]) delete order[u];
-          }
-          draw();
-        };
-        el.addEventListener('input', commit);
-        el.addEventListener('change', commit);
-      });
-
-      const go = $('#raise-go');
-      if (go) go.addEventListener('click', () => {
-        for (const u in order) {
-          for (let i = 0; i < order[u]; i++) Rules.raiseHost(pi, regionId, u);
-        }
-        UI.closeModal();
-        UI.spendAction();
-      });
+      go.disabled = spent === 0 || left < 0;
+      go.textContent = spent === 0 ? 'Raise' : `Raise for ${spent}t`;
     };
-    draw();
+
+    sliders.forEach(el => {
+      // `input` only — binding `change` as well fired the handler twice per drag
+      el.addEventListener('input', () => {
+        const u = el.dataset.raise;
+        const v = Math.max(0, +el.value);
+        if (v > 0) order[u] = v; else delete order[u];
+        if (totalCost() > p.tribute) {          // never let a slider overdraw
+          const cost = costOf(u);
+          const others = totalCost() - v * cost;
+          order[u] = Math.max(0, Math.floor((p.tribute - others) / Math.max(1, cost)));
+          if (!order[u]) delete order[u];
+          el.value = order[u] || 0;
+        }
+        sync();
+      });
+    });
+
+    go.addEventListener('click', () => {
+      if (committed) return;                    // one tap, one action
+      committed = true;
+      for (const u in order) {
+        for (let i = 0; i < order[u]; i++) Rules.raiseHost(pi, regionId, u);
+      }
+      UI.closeModal();
+      UI.spendAction();
+    });
+
+    sync();
   },
 
   /* the unit's map silhouette, inline, so the same shape means the same thing
@@ -5171,6 +5481,308 @@ const UI = {
 };
 
 ;
+/* ===== js/feedback.js ===== */
+/* ============================================================
+   APOTHEOSIS — feedback layer
+
+   The gap this closes: you tapped, the state changed, the screen redrew, and
+   nothing told you what happened. A capture, a level-up, a Champion's death and
+   a build you could not afford all landed with exactly the same silence.
+
+   Three surfaces, all of them driven off things the engine already produces:
+
+     1. ANNOUNCEMENTS — the chronicle is already a structured event stream
+        ({text, kind, player, seq}). This diffs it against a watermark and
+        surfaces what is worth interrupting for. No engine coupling: state.js
+        numbers its own events and knows nothing about any of this.
+
+     2. REFUSALS — a disabled button on a phone is a dead end. There is no
+        hover, so the `title` explaining why never appears. Action buttons are
+        now aria-disabled rather than disabled, so a tap still lands and can
+        answer the question it was asked.
+
+     3. DELTAS — Tribute, Renown and Score flag their own change, so the cost
+        of what you just did is legible where the number lives.
+
+   Motion here is deliberately small: a 180ms entry, a 160ms exit, nothing on
+   the board itself, nothing looping. The global prefers-reduced-motion rule in
+   style.css kills all of it, and every card's resting state is the visible one
+   so nothing depends on an animation having run.
+   ============================================================ */
+
+(function () {
+
+  /* ---- icons ----------------------------------------------------------
+     Filled silhouettes on a 24 box, matching the board's visual language
+     rather than introducing a stroked line-icon set that would read as
+     borrowed from a different product. */
+  /* Rendered at 92/42/24/18px and looked at, per rule 1b, which caught three
+     failures that reasoning about the path data had not:
+       - `torn` was a banner with a jagged hem. Against `banner` it was
+         IDENTICAL at every size — the two most opposed events in the game,
+         ground taken and ground lost, separated only by colour. The cloth now
+         sits at the FOOT of the staff: struck colours. Silhouette mass moves
+         from top-right to bottom-right, which survives 18px.
+       - `laurel` served both Domain and Blessing. It read as a pair of leaves,
+         said neither, and was the same glyph in the same colour for both.
+       - `obelisk` was a thin sliver, near-invisible at 18px and confusable
+         with `blade`. It is a broad stepped plinth now. */
+  const ICONS = {
+    banner:  'M6 3h2v18H6z M8 4h11l-3 4 3 4H8z',
+    struck:  'M6 3h2v18H6z M8 12h11l-3 4 3 4H8z',
+    crown:   'M2.8 8.4l4.1 3.1L12 4.2l5.1 7.3 4.1-3.1-1.9 10.4H4.7z M4.9 20h14.2v1.8H4.9z',
+    star:    'M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z',
+    keep:    'M5 21V10h14v11z M5 10V5.6h2.6v2.1h3.1V5.6h2.6v2.1h3.1V5.6H19V10z',
+    plinth:  'M9.2 3.2h5.6l1.5 12.4H7.7z M6.2 16.4h11.6v2.4H6.2z M4.4 19.6h15.2v2.6H4.4z',
+    shield:  'M12 2.2l8 2.9v5.6c0 5.1-3.3 8.8-8 11.1-4.7-2.3-8-6-8-11.1V5.1z',
+    coin:    'M12 2.6A9.4 9.4 0 1012 21.4 9.4 9.4 0 0012 2.6zm0 3.6a5.8 5.8 0 110 11.6 5.8 5.8 0 010-11.6z',
+    blade:   'M12 1.4l1.7 3.2v9.1h-3.4V4.6z M7.4 13.7h9.2v2.1H7.4z M11.1 15.8h1.8v5.1h-1.8z M12 22.6a1.4 1.4 0 100-2.8 1.4 1.4 0 000 2.8z',
+    /* a complete set of ground, filled — reads at any size, unlike a wreath */
+    quarters:'M3.2 3.2h8v8h-8z M12.8 3.2h8v8h-8z M3.2 12.8h8v8h-8z M12.8 12.8h8v8h-8z',
+    chalice: 'M5.8 2.8h12.4v3.4a6.2 6.2 0 01-5.2 6.1V18h3.8v3.2H7.2V18H11v-5.7a6.2 6.2 0 01-5.2-6.1z',
+    warn:    'M12 2.6l10.2 17.8H1.8z M11 9.2h2v6.2h-2z M11 16.6h2v2.1h-2z'
+  };
+
+  /* ---- what each event kind is worth ---------------------------------
+     weight  loud   — always announced, even on a rival's turn. These are the
+                      things you must not miss.
+             normal — announced when a human did it. An AI raising a Holding
+                      every turn is noise; you raising one is confirmation.
+             skip   — the chronicle keeps it, the screen does not.
+     tone    picks the colour and therefore the read: gain, loss, renown,
+             coin (economy) or neutral. */
+  const KINDS = {
+    capture:      { weight: 'loud', tone: 'gain',   icon: 'banner',   label: 'Ground taken' },
+    fallen:       { weight: 'loud', tone: 'loss',   icon: 'struck',   label: 'Ground lost' },
+    championfall: { weight: 'loud', tone: 'loss',   icon: 'crown',    label: 'Champion falls' },
+    level:        { weight: 'loud', tone: 'renown', icon: 'star',     label: 'Renown' },
+    apotheosis:   { weight: 'loud', tone: 'renown', icon: 'star',     label: 'Apotheosis' },
+    domain:       { weight: 'loud', tone: 'renown', icon: 'quarters', label: 'Domain complete' },
+    victory:      { weight: 'loud', tone: 'renown', icon: 'star',     label: 'The war ends' },
+    surrender:    { weight: 'loud', tone: 'loss',   icon: 'struck',   label: 'Surrender' },
+
+    /* Movement and the Undying save. Shares the crown with championfall, which
+       is fine: they differ in colour, weight and label, and they are never
+       adjacent the way capture and fallen are. */
+    champion:   { weight: 'normal', tone: 'neutral', icon: 'crown',   label: 'Champion' },
+
+    repulse:    { weight: 'normal', tone: 'loss',    icon: 'shield',  label: 'Assault broken' },
+    withdraw:   { weight: 'normal', tone: 'neutral', icon: 'blade',   label: 'Withdrawn' },
+    siege:      { weight: 'normal', tone: 'gain',    icon: 'blade',   label: 'Siege' },
+    warden:     { weight: 'normal', tone: 'loss',    icon: 'shield',  label: 'Warden falls' },
+    build:      { weight: 'normal', tone: 'gain',    icon: 'keep',    label: 'Holding raised' },
+    monument:   { weight: 'normal', tone: 'renown',  icon: 'plinth',  label: 'Monument' },
+    boon:       { weight: 'normal', tone: 'renown',  icon: 'chalice', label: 'Blessing' },
+    perk:       { weight: 'normal', tone: 'renown',  icon: 'blade',   label: 'Champion Perk' },
+    desert:     { weight: 'normal', tone: 'loss',    icon: 'coin',    label: 'Desertion' },
+    spoils:     { weight: 'normal', tone: 'coin',    icon: 'coin',    label: 'Spoils' },
+    turn:       { weight: 'normal', tone: 'coin',    icon: 'coin',    label: 'Your Turn' },
+
+    raise:      { weight: 'normal', tone: 'gain',    icon: 'blade',   label: 'Host raised' },
+
+    march:      { weight: 'skip' },
+    /* The combat dialog opens on the same tick and says all of this louder. */
+    attack:     { weight: 'skip' },
+    round:      { weight: 'skip' },
+    upkeep:     { weight: 'skip' },
+    xp:         { weight: 'skip' },
+    info:       { weight: 'skip' }
+  };
+
+  const HOLD = { loud: 5200, normal: 3600, refusal: 3600 };
+
+  /* Two on a phone, three on desktop. Three 45px cards plus gaps is ~150px of a
+     418px map — enough of the board covered that the announcements start
+     competing with the thing they are announcing. */
+  const cap = () => (UI.phone && UI.phone()) ? 2 : 3;
+
+  UI.fx = {
+
+    seen: 0,
+    host: null,
+    live: [],
+
+    /* ---- announcements ---- */
+
+    mount() {
+      if (UI.fx.host && document.body.contains(UI.fx.host)) return;
+      const pane = document.getElementById('map-pane');
+      if (!pane) return;
+      const host = document.createElement('div');
+      host.id = 'announce';
+      host.setAttribute('aria-live', 'polite');
+      pane.appendChild(host);
+      UI.fx.host = host;
+      /* Prime the watermark. Without this the opening "Round 1 begins" and
+         the first income line fire as announcements over an empty board. */
+      UI.fx.seen = (typeof G !== 'undefined' && G) ? G.logSeq : 0;
+    },
+
+    /* Called at the end of every render. Cheap — it compares one integer
+       until there is genuinely something new. */
+    pump() {
+      if (typeof G === 'undefined' || !G) return;
+      UI.fx.mount();
+      if (!UI.fx.host) return;
+
+      /* A new match resets the engine's counter; the watermark has to follow
+         it back down or nothing is ever announced again. */
+      if (UI.fx.seen > G.logSeq) UI.fx.seen = 0;
+
+      /* A dialog owns the screen while it is open. Announcements wait behind
+         it rather than being buried under the scrim and expiring unseen. */
+      if (UI.modalOpen && UI.modalOpen()) return;
+      if (!document.getElementById('pass-layer').classList.contains('hidden')) return;
+
+      const fresh = [];
+      for (const e of G.log) {
+        if (e.seq === undefined || e.seq <= UI.fx.seen) break;
+        fresh.push(e);
+      }
+      if (!fresh.length) return;
+      UI.fx.seen = G.logSeq;
+      fresh.reverse();                                   // oldest first
+
+      const worth = fresh.filter(e => {
+        const k = KINDS[e.kind];
+        if (!k || k.weight === 'skip') return false;
+        if (k.weight === 'loud') return true;
+        /* normal-weight events only speak up for a seat a person is playing,
+           so watching three AI turns is not three screens of confirmations */
+        return e.player !== null && e.player !== undefined && !AI.isAI(e.player);
+      });
+      if (!worth.length) return;
+
+      /* When several land at once — a combat dialog closing can flush a
+         capture, a Domain and a level in one go — keep the loud ones. */
+      let show = worth;
+      if (show.length > cap()) {
+        const loud = show.filter(e => KINDS[e.kind].weight === 'loud');
+        show = (loud.length ? loud : show).slice(-cap());
+      }
+      show.forEach(e => UI.fx.card(KINDS[e.kind], e.text, e.player));
+    },
+
+    card(kind, text, player) {
+      const host = UI.fx.host;
+      if (!host) return;
+
+      const colour = (player !== null && player !== undefined && G.players[player])
+        ? G.players[player].colour.hex : 'transparent';
+
+      const el = document.createElement('div');
+      el.className = `fx-card fx-${kind.tone} fx-${kind.weight}`;
+      el.setAttribute('role', 'status');
+      el.innerHTML =
+        `<span class="fx-bar" style="background:${colour}"></span>` +
+        `<svg class="fx-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[kind.icon]}" fill-rule="evenodd"/></svg>` +
+        `<span class="fx-txt"><span class="fx-eyebrow">${esc(kind.label)}</span>` +
+        `<span class="fx-body">${esc(text)}</span></span>`;
+
+      el.addEventListener('click', () => UI.fx.drop(el));
+      UI.fx.push(el, HOLD[kind.weight] || HOLD.normal);
+    },
+
+    /* Single place where a card enters and where capacity is enforced. */
+    push(el, hold) {
+      UI.fx.host.appendChild(el);
+      UI.fx.live.push({ el, timer: setTimeout(() => UI.fx.drop(el), hold) });
+      /* Evicted immediately, not on the exit transition: a card being shoved
+         out by a newer one is not a dismissal, and deferring its removal is
+         what let 87 orphan nodes pile up over a full match — `live` stayed at
+         its cap the whole time while the DOM grew without limit. */
+      while (UI.fx.live.length > cap()) UI.fx.drop(UI.fx.live[0].el, true);
+      UI.fx.sweep();
+    },
+
+    drop(el, now) {
+      const i = UI.fx.live.findIndex(r => r.el === el);
+      if (i < 0) { if (el.parentNode) el.parentNode.removeChild(el); return; }
+      clearTimeout(UI.fx.live[i].timer);
+      UI.fx.live.splice(i, 1);
+      if (now) { if (el.parentNode) el.parentNode.removeChild(el); return; }
+      el.classList.add('out');
+      /* Removed on a timer rather than on transitionend: under
+         prefers-reduced-motion the transition never fires, and a card waiting
+         for an event that cannot arrive would sit there forever. */
+      setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 180);
+    },
+
+    /* Anything in the host that nothing is tracking is by definition orphaned —
+       a fading card whose removal timer was outrun by the next burst. */
+    sweep() {
+      const host = UI.fx.host;
+      if (!host || host.children.length <= cap() * 2) return;
+      [...host.children].forEach(el => {
+        if (!UI.fx.live.some(r => r.el === el)) host.removeChild(el);
+      });
+    },
+
+    clear() {
+      [...UI.fx.live].forEach(r => UI.fx.drop(r.el, true));
+      if (UI.fx.host) UI.fx.host.innerHTML = '';
+    },
+
+    /* ---- refusals ----
+       Deliberately does NOT re-render: a render replaces the button and the
+       nudge would be destroyed mid-play, which is the same class of bug as
+       rebuilding a dialog under a dragging finger. */
+    refuse(el, why) {
+      if (el) {
+        el.classList.remove('refused');
+        void el.offsetWidth;                 // restart the animation
+        el.classList.add('refused');
+        setTimeout(() => el.classList.remove('refused'), 320);
+      }
+      const dup = UI.fx.live.find(r => r.el.dataset.why === why);
+      if (dup) { clearTimeout(dup.timer); dup.timer = setTimeout(() => UI.fx.drop(dup.el), HOLD.refusal); return; }
+
+      const host = UI.fx.host;
+      if (!host) return;
+      const card = document.createElement('div');
+      card.className = 'fx-card fx-refusal fx-normal';
+      card.dataset.why = why;
+      card.setAttribute('role', 'status');
+      card.innerHTML =
+        `<span class="fx-bar"></span>` +
+        `<svg class="fx-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS.warn}" fill-rule="evenodd"/></svg>` +
+        `<span class="fx-txt"><span class="fx-eyebrow">Not yet</span>` +
+        `<span class="fx-body">${esc(why)}</span></span>`;
+      card.addEventListener('click', () => UI.fx.drop(card));
+      UI.fx.push(card, HOLD.refusal);
+    },
+
+    /* ---- stat deltas ----
+       Emitted only on the render that detects the change, and animated once to
+       an invisible resting state. No timers, no forced re-render: a chip that
+       needed the screen repainted to clear itself would fight the coalesced
+       render loop for no gain. */
+    stat: {},
+
+    delta(key, value) {
+      const prev = UI.fx.stat[key];
+      UI.fx.stat[key] = value;
+      if (prev === undefined || prev === value) return '';
+      /* Only the seat a person is actually playing gets deltas. Otherwise the
+         panel flickers with numbers belonging to an AI mid-turn. */
+      if (AI.isAI(UI.actingIndex())) return '';
+      const d = value - prev;
+      return `<i class="fx-delta ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</i>`;
+    },
+
+    /* Called when a match starts. Stats are keyed by seat, so a fresh game
+       reusing seat 0 would otherwise diff the new warlord's opening treasury
+       against the last one's closing balance. */
+    reset() {
+      UI.fx.clear();
+      UI.fx.stat = {};
+      UI.fx.seen = (typeof G !== 'undefined' && G) ? G.logSeq : 0;
+    }
+  };
+
+})();
+
+;
 /* ===== js/main.js ===== */
 /* ============================================================
    APOTHEOSIS — bootstrap and setup screen
@@ -5276,6 +5888,7 @@ const UI = {
 
     $('#setup').classList.add('hidden');
     $('#game').classList.remove('hidden');
+    UI.fx.reset();
     $('#btn-rules').addEventListener('click', () => UI.openReference());
     $('#btn-speed').addEventListener('click', () => {
       speedIdx = (speedIdx + 1) % SPEEDS.length;
