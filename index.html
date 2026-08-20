@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Apotheosis — prototype</title>
 <style>
 /* ============================================================
@@ -1090,7 +1090,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
    the map only, never on the page.
    ============================================================ */
 
-#map-wrap { touch-action: none; cursor: grab; }
+#map-wrap {
+  touch-action: none; cursor: grab;
+  /* A fast two-finger touch can otherwise trigger iOS's long-press callout
+     (copy/share menu) or a text-selection highlight mid-gesture — another
+     system UI competing for the same touch, and another source of the delay
+     scaling with how "confident" the gesture looks. Both are pure liability
+     on a map with no text to select and no content to share. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
 #map-wrap:active { cursor: grabbing; }
 
 #cam-ctl {
@@ -5435,6 +5445,17 @@ const UI = {
       };
 
       wrap.addEventListener('pointerdown', e => {
+        /* Tell the browser up front that the page owns this touch.
+
+           Without this, iOS Safari keeps its own pinch-zoom recognizer live
+           alongside ours and arbitrates between them: a slow, gentle pinch
+           reads as ambiguous and is handed to the page quickly, but a fast,
+           wide "violent" pinch reads as a confident native-zoom candidate, so
+           WebKit holds onto it longer before conceding. That is a delay that
+           grows with exactly how fast the gesture is — the symptom this was
+           chasing. preventDefault on pointerdown is the documented way to
+           decline the native gesture immediately rather than let it compete. */
+        e.preventDefault();
         c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (c._pts.size === 1) {
           c._mode = null;
@@ -5449,7 +5470,7 @@ const UI = {
           c.seedPinch();
           grab(e.pointerId);
         }
-      });
+      }, { passive: false });      /* explicit: preventDefault must not be ignored */
 
       wrap.addEventListener('pointermove', e => {
         if (!c._pts.has(e.pointerId)) return;
