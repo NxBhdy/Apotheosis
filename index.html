@@ -1393,11 +1393,20 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 
 #map-wrap { overflow: hidden; }        /* the transformed board is clipped */
 
-/* mid-gesture: nothing expensive, and no transitions fighting the transform */
-#map.is-gesturing .land-tex,
-#map.is-gesturing .sea-tex,
-#map.is-gesturing .grain { display: none; }
-#map.is-gesturing * { transition: none !important; }
+/* The board is promoted to its own compositor layer ONCE, here, rather than at
+   the start of every gesture. Doing it per-gesture meant the browser had to
+   rasterise the whole 1340x960 board into a fresh texture before the first
+   frame of a pinch could move — a stall at the start of the gesture and then
+   perfect smoothness after, which is exactly how it felt.
+
+   Nothing is hidden mid-gesture any more either. Suppressing the texture
+   layers when a gesture began forced a full repaint at the worst possible
+   moment, and bought nothing: the transform reuses the existing raster, so
+   those layers cost nothing while the fingers are down. */
+#map {
+  will-change: transform;
+  transform-origin: 0 0;
+}
 
 /* zoomed in, whole-board texture is paid for and not seen — you are looking at
    one corner of it. Restored the moment the board returns to fit. */
@@ -5009,6 +5018,11 @@ const UI = {
     UI.cam.wire();
     UI.cam.apply();
     UI.renderHint();
+    /* renderHint can change the hint bar's height, which changes the map pane
+       beneath it. Mark the cached board box stale and let warm() re-measure in
+       a frame of its own — never synchronously, and never with fingers down. */
+    UI.cam.stale();
+    UI.cam.warm();
     /* An open popover is NOT rebuilt here. It was built from a snapshot and is
        torn down by whatever commits against it — repainting it under a finger
        is rule 1f, and it is how the raise dialog once spent two actions. */
@@ -5137,6 +5151,7 @@ const UI = {
     _held: null,
     _rect: null,
     _raf: 0,
+    _warmRaf: 0,
 
     /* live-gesture transform, in SCREEN px relative to the committed view */
     _live: false,
@@ -5216,9 +5231,32 @@ const UI = {
       svg.classList.toggle('is-zoomed', c.k > 1.02);
       const fit = $('#cam-fit');
       if (fit) fit.hidden = c.k <= c.MIN + 0.01;
+      c.warm();
     },
 
-    apply() { UI.cam._rect = null; UI.cam.paint(); },
+    apply() { UI.cam.stale(); UI.cam.paint(); },
+
+    /* Re-measure the board OFF the critical path.
+
+       getBoundingClientRect on #map forces a synchronous layout of the whole
+       ~980-node SVG: 7ms cold here, 26ms straight after a viewBox write, and
+       far worse on a phone. begin() used to do exactly that at the instant a
+       gesture started, and commit() threw the cache away so the NEXT gesture
+       started cold too. That was the stall at the beginning of a pinch.
+
+       The measurement now happens in a frame of its own, after the paint has
+       settled, so by the time fingers land the number is already there. */
+    stale() { UI.cam._rect = null; },
+    warm() {
+      const c = UI.cam;
+      if (c._warmRaf) return;
+      c._warmRaf = requestAnimationFrame(() => {
+        c._warmRaf = 0;
+        if (c._live) return;          /* never re-measure mid-gesture */
+        c._rect = null;
+        c.rect();
+      });
+    },
 
     /* ---- direct (non-gesture) zoom: buttons, wheel ---- */
     zoomAt(factor, clientX, clientY) {
@@ -5254,16 +5292,24 @@ const UI = {
       if (c._live) return;
       const svg = $('#map');
       if (!svg) return;
-      c._rect = null;
-      const r = c.rect();
+      const r = c.rect();          /* already warm; see warm() above */
       const v = c.clampNow();
       if (!r || !v) return;
       c._base = { x: c.cx - v.w / 2, y: c.cy - v.h / 2, w: v.w, h: v.h, k: c.k };
       c._gs = 1; c._tx = 0; c._ty = 0;
       c._live = true;
-      svg.style.transformOrigin = '0 0';
-      svg.style.willChange = 'transform';
-      svg.classList.add('is-gesturing');
+      /* Nothing is written to the element here on purpose.
+
+         This used to set will-change and add an is-gesturing class. Both were
+         one-off costs paid at the exact moment the gesture started: the first
+         promoted the whole board to a fresh GPU layer, and the second hid the
+         texture layers, which forced a full repaint. That is why a pinch was
+         slow to start and then perfectly smooth once moving — all the work was
+         at the front.
+
+         The layer is now promoted permanently in the stylesheet, so it already
+         exists, and the texture is left alone because nothing repaints during
+         a gesture anyway. begin() is now pure bookkeeping. */
     },
 
     /* keep the visible window inside the board while dragging, so nothing has
@@ -5336,25 +5382,18 @@ const UI = {
       }
       c._gs = 1; c._tx = 0; c._ty = 0; c._base = null;
       if (c._traf) { cancelAnimationFrame(c._traf); c._traf = 0; }
-      if (svg) {
-        svg.style.transform = '';
-        svg.style.willChange = '';
-        svg.classList.remove('is-gesturing');
-      }
-      c._rect = null;
-      c.paint();
+      if (svg) svg.style.transform = '';
+      c.paint();                   /* cache survives; warm() refreshes it */
     },
 
     reset() {
       const c = UI.cam;
-      c._rect = null;
       c.k = 1; c.cx = MAP_W / 2; c.cy = MAP_H / 2;
       c.paint();
     },
 
     step(f) {
       const c = UI.cam;
-      c._rect = null;
       const r = c.rect();
       if (!r) return;
       c.zoomAt(f, r.left + r.width / 2, r.top + r.height / 2);
@@ -5475,7 +5514,6 @@ const UI = {
 
       wrap.addEventListener('wheel', e => {
         e.preventDefault();
-        c._rect = null;
         const f = e.ctrlKey ? Math.exp(-e.deltaY * 0.01)
                             : (e.deltaY < 0 ? 1.12 : 1 / 1.12);
         c.zoomAt(f, e.clientX, e.clientY);
@@ -5498,7 +5536,7 @@ const UI = {
       on('#cam-out', () => c.step(1 / 1.35));
       on('#cam-fit', () => c.reset());
 
-      addEventListener('resize', () => { c._rect = null; c.paint(); });
+      addEventListener('resize', () => { c.stale(); c.paint(); });
     }
   },
 
