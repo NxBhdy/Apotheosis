@@ -920,26 +920,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 
 /* ---- presentation C: dropdown from the top bar ---- */
 .pv--drop { position: absolute; top: 0; right: .4rem; width: min(22rem, calc(100vw - .8rem)); max-height: 76vh; animation: pv-drop .18s cubic-bezier(.2,.8,.3,1) both; }
-
-/* ---- the action grid: six controls, three across ---- */
-.pv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line-soft); }
-.pv-act {
-  /* Explicit px. The root font is 15px, so rem maths undershoots the 44px
-     minimum silently — 2.85rem computed to 42.75px and shipped. */
-  min-height: 74px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
-  background: var(--surface); border: none; color: var(--ink);
-  font-family: var(--f-body); font-size: var(--t-micro); line-height: 1.15;
-  padding: .5rem .3rem; cursor: pointer; text-align: center;
-  transition: background .12s ease;
-}
-.pv-act:hover  { background: var(--surface-3); }
-.pv-act:active { background: var(--surface-3); }
-.pv-act .icn   { flex: 0 0 auto; }
-.pv-act.is-off { color: var(--ink-dim); cursor: default; }
-.pv-act.is-off:hover { background: var(--surface); }
-.pv-act:focus-visible { outline: 2px solid var(--bronze); outline-offset: -2px; }
-
 /* ---- a labelled reference row: "Income  3 (+2 Holding)" ---- */
 .pv-row { display: flex; align-items: baseline; gap: .6rem; padding: .3rem 0; font-size: var(--t-small); }
 .pv-row + .pv-row { border-top: 1px solid var(--line-soft); }
@@ -1050,13 +1030,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 /* actions-left counter in the region sheet header */
 .pv-budget { font-family: var(--f-mono); color: var(--bronze); }
 .pv-budget.spent { color: var(--blood); }
-
-/* End Turn is the one action in the grid that always works, so it carries the
-   only accent in the set — otherwise six identical tiles give no entry point. */
-.pv-act.is-primary { color: var(--bronze); }
-.pv-act.is-primary:hover { background: var(--surface-3); }
-.pv-act.is-off.is-primary { color: var(--ink-dim); }
-
 /* the popover's own copy of the domain legend, which used to be desktop-only
    in the phase strip; here it wraps instead of pushing right */
 .pv .domains { margin-left: 0; gap: .5rem .85rem; margin-top: .2rem; }
@@ -1134,6 +1107,274 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 }
 #cam-ctl button:hover { background: var(--surface-3); color: var(--ink); }
 #cam-ctl button[hidden] { display: none; }
+
+
+/* ---- Holding income, stamped on the piece ----
+   The number was always derivable and never shown: reading a board meant
+   knowing the tier table AND whether the Domain was complete. Verdigris when
+   a Domain or a Boon has raised it above the flat tier value, so the doubling
+   is visible on the board the moment it happens. */
+.hold-inc {
+  font-family: var(--f-mono); font-size: 11px; font-weight: 700;
+  text-anchor: middle; fill: var(--bronze);
+  paint-order: stroke; stroke: rgba(6,8,13,.92); stroke-width: 2.6px;
+}
+.hold-inc.boosted { fill: var(--verdigris); }
+.hold-inc.restive { fill: var(--ink-dim); }
+.as-icons {
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  gap: 2px; margin-bottom: .3rem;
+}
+.as-ico {
+  min-height: 44px; padding: 0; border: none; border-radius: 6px;
+  background: none; color: var(--ink-mid); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .12s, color .12s;
+}
+.as-ico:hover  { background: var(--surface-3); color: var(--ink); }
+.as-ico.on     { background: var(--surface-3); color: var(--bronze); }
+.as-ico.is-off { color: var(--ink-dim); }
+.as-ico.is-off.on { color: var(--blood); }
+.as-ico:focus-visible { outline: 2px solid var(--bronze); outline-offset: -2px; }
+
+/* the rail */
+.as-range {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 44px; margin: 0; background: none; cursor: pointer;
+  display: block;
+}
+.as-range::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--bronze-dim), var(--verd-dim));
+}
+.as-range::-moz-range-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--bronze-dim), var(--verd-dim));
+}
+.as-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--bronze); border: 3px solid var(--ground);
+  box-shadow: var(--elev-2); margin-top: -11px;
+}
+.as-range::-moz-range-thumb {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--bronze); border: 3px solid var(--ground);
+  box-shadow: var(--elev-2);
+}
+.as-range:focus-visible { outline: 2px solid var(--bronze); outline-offset: 2px; }.r2-count {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 44px; margin: 0; background: none; cursor: pointer;
+}
+.r2-count::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--surface-3); }
+.r2-count::-moz-range-track { height: 6px; border-radius: 3px; background: var(--surface-3); }
+.r2-count::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 28px; height: 28px; border-radius: 50%; margin-top: -11px;
+  background: var(--bronze); border: 3px solid var(--ground); box-shadow: var(--elev-2);
+}
+.r2-count::-moz-range-thumb {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--bronze); border: 3px solid var(--ground); box-shadow: var(--elev-2);
+}
+.r2-count:disabled { opacity: .4; cursor: not-allowed; }
+.r2-count:disabled::-webkit-slider-thumb { background: var(--ink-dim); }
+.r2-count:focus-visible { outline: 2px solid var(--bronze); outline-offset: 2px; }
+.ref-raises {
+  font-family: var(--f-mono); font-size: var(--t-micro); letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-dim); display: inline;
+}
+.ref-none { color: var(--ink-dim); font-style: italic; }
+
+
+/* ============================================================
+   THE STRIP — controls that float over the board
+
+   The sheet this replaces was 383px of an 812px screen: half the map, with a
+   dead board behind it. The strip sits over the board and does NOT block it —
+   the layer stops taking pointer events, so tapping another territory switches
+   to it instead of dismissing first. That is the point of the whole pattern.
+   ============================================================ */
+
+.pv-layer.is-strip {
+  background: none; backdrop-filter: none;
+  pointer-events: none;                 /* the map underneath stays live */
+  align-items: flex-end;
+}
+.pv--strip {
+  pointer-events: auto;                 /* ...but the strip itself is tappable */
+  width: 100%; margin-top: auto;
+  max-height: none;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--surface) 92%, transparent),
+    color-mix(in srgb, var(--ground)  96%, transparent));
+  border: none; border-top: 1px solid var(--bronze-dim);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -10px 30px rgba(0,0,0,.5);
+  padding: .45rem .55rem .55rem;
+  animation: pv-rise .18s cubic-bezier(.2,.8,.3,1) both;
+}
+
+/* line 1: where you are, and the info toggle */
+.st-top { display: flex; align-items: center; gap: .5rem; padding: 0 .15rem .3rem; }
+.st-where {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--f-mono); font-size: var(--t-micro); letter-spacing: .1em;
+  text-transform: uppercase; color: var(--verdigris);
+}
+.st-where em { font-style: normal; color: var(--bronze); margin-left: .5rem; }
+.st-where em.spent { color: var(--blood); }
+.st-where em.spending { color: var(--bronze); }
+.st-i {
+  flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-mid);
+  font-family: var(--f-display); font-size: .9rem; line-height: 1; cursor: pointer;
+}
+.st-i.on { border-color: var(--verd-dim); color: var(--verdigris); }
+
+/* line 2: the action icons */
+.st-icons { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
+.st-icons .as-ico {
+  min-height: 38px; padding: 0; border: none; border-radius: 6px;
+  background: none; color: var(--ink-mid); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.st-icons .as-ico:hover { background: var(--surface-3); color: var(--ink); }
+.st-icons .as-ico.on { background: var(--surface-3); color: var(--bronze); }
+.st-icons .as-ico.is-off { color: var(--ink-dim); }
+.st-icons .as-ico.is-off.on { color: var(--blood); }
+
+/* line 3: cancel, readout, confirm — RISK's shape */
+.st-foot { display: flex; align-items: center; gap: .55rem; margin-top: .25rem; }
+.st-x, .st-ok {
+  flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%;
+  border: 2px solid; font-size: 1.35rem; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.st-x  { border-color: var(--blood); color: #e8b6b4;
+         background: color-mix(in srgb, var(--blood) 18%, var(--surface-2)); }
+.st-ok { border-color: var(--verd-dim); color: #bfe4db;
+         background: color-mix(in srgb, var(--verdigris) 20%, var(--surface-2)); }
+.st-ok.is-off { border-color: var(--line); color: var(--ink-dim); background: var(--surface-2); }
+.st-x:focus-visible, .st-ok:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.st-read { flex: 1 1 auto; min-width: 0; }
+/* Named for what they are, not for where they sit: the sweep in rule 1 checks
+   emitted classes against the stylesheet, and a descendant selector makes a
+   class it styles look unstyled. */
+.as-name, .rz-name {
+  display: block; font-family: var(--f-display); font-size: var(--t-lead);
+  color: var(--ink); line-height: 1.15;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.as-why, .rz-rule {
+  display: block; font-style: normal; font-size: var(--t-micro);
+  color: var(--ink-mid); line-height: 1.3; margin-top: .1rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.as-why.blocked, .rz-rule.blocked { color: #e0a09d; }
+
+/* the running total in the strip header */
+.rz-tally { font-style: normal; }
+
+/* every icon Icons.svg emits */
+.icn { flex: 0 0 auto; }
+
+/* the "i" panel, folded away until asked for */
+.st-info {
+  margin-top: .5rem; padding-top: .45rem; border-top: 1px solid var(--line-soft);
+  max-height: 34vh; overflow-y: auto;
+}
+.st-info[hidden] { display: none; }
+
+/* ---- raise: kinds on the left, amount on the right ---- */
+.rz { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; align-items: center; }
+
+.rz-kinds {
+  display: flex; gap: 3px; overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch; padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.rz-kinds::-webkit-scrollbar { display: none; }
+.rk {
+  flex: 0 0 auto; position: relative;
+  width: 44px; min-height: 46px; padding: .2rem 0 0;
+  display: flex; flex-direction: column; align-items: center; gap: .1rem;
+  background: var(--surface-2); border: 1px solid transparent; border-radius: 6px;
+  color: var(--ink); cursor: pointer;
+}
+.rk.on { border-color: var(--bronze); background: color-mix(in srgb, var(--bronze) 14%, var(--surface-2)); }
+.rk.is-hard { opacity: .45; }
+.rk-ico { display: flex; align-items: center; justify-content: center; height: 20px; }
+.rk-cost { font-family: var(--f-mono); font-size: .62rem; font-weight: 700; line-height: 1; }
+.rk-cost.on      { color: var(--verdigris); }
+.rk-cost.off     { color: var(--blood); }
+.rk-cost.blocked { color: var(--ink-dim); }
+.rk-n {
+  position: absolute; top: -5px; right: -4px; min-width: 16px; height: 16px;
+  border-radius: 8px; background: var(--bronze); color: #17120a;
+  font-family: var(--f-mono); font-size: .6rem; font-weight: 700; line-height: 16px;
+  text-align: center; opacity: 0; transition: opacity .12s;
+}
+.rk-n.has { opacity: 1; }
+
+.rz-amt { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto;
+          column-gap: .5rem; align-items: center; }
+.rz-note {
+  grid-column: 1 / -1;
+  font-family: var(--f-mono); font-size: .6rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-dim); line-height: 1;
+}
+.rz-note.on      { color: var(--verdigris); }
+.rz-note.off     { color: var(--blood); }
+.rz-note.blocked { color: var(--ink-dim); }
+.rz-n { text-align: right; }
+.r2-amt-n { font-family: var(--f-mono); font-size: var(--t-h3); font-weight: 700; color: var(--ink-dim); }
+.r2-amt-n.has { color: var(--bronze); }
+
+/* the amount rail — kept, per preference, over a value carousel: one drag
+   reaches 20 Levy where a carousel would be a long scrub */
+.r2-count {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 44px; margin: 0; background: none; cursor: pointer;
+}
+.r2-count::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--surface-3); }
+.r2-count::-moz-range-track { height: 6px; border-radius: 3px; background: var(--surface-3); }
+.r2-count::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 26px; height: 26px; border-radius: 50%; margin-top: -10px;
+  background: var(--bronze); border: 3px solid var(--ground); box-shadow: var(--elev-2);
+}
+.r2-count::-moz-range-thumb {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--bronze); border: 3px solid var(--ground); box-shadow: var(--elev-2);
+}
+.r2-count:disabled { opacity: .4; cursor: not-allowed; }
+.r2-count:disabled::-webkit-slider-thumb { background: var(--ink-dim); }
+.r2-count:focus-visible { outline: 2px solid var(--bronze); outline-offset: 2px; }
+
+/* the action rail inside the strip */
+.pv--strip .as-range {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 40px; margin: 0; background: none; cursor: pointer; display: block;
+}
+.pv--strip .as-range::-webkit-slider-runnable-track {
+  height: 5px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--bronze-dim), var(--verd-dim));
+}
+.pv--strip .as-range::-moz-range-track {
+  height: 5px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--bronze-dim), var(--verd-dim));
+}
+.pv--strip .as-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 24px; height: 24px; border-radius: 50%; margin-top: -9.5px;
+  background: var(--bronze); border: 3px solid var(--ground); box-shadow: var(--elev-2);
+}
+.pv--strip .as-range::-moz-range-thumb {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--bronze); border: 3px solid var(--ground); box-shadow: var(--elev-2);
+}
 
 </style>
 </head>
@@ -1244,6 +1485,12 @@ function mulberry32(seed) {
 
 /* ---------- region types ---------- */
 
+/* NOTE on `raises`: this is an AI HINT, not the rule. ai.js only ever tests
+   `raises.length > 0` — "does this ground unlock anything at all". The
+   authoritative list of what can be raised where is UNITS[u].raisedAt, and
+   these arrays omit every patron unit (stormrider at a Port, caravaneer at a
+   Farmland or Port, gatewarden at a Forge). Do not read the contents of this
+   for anything the player sees; derive from UNITS.raisedAt instead. */
 const REGION_TYPES = {
   farmland: {
     name: 'Farmland', income: 1, glyph: 'farmland',
@@ -2171,6 +2418,27 @@ const Rules = {
 
   /* ---------------- economy ---------------- */
 
+  /* What a Holding at this region actually pays its owner — the tier value,
+     doubled for a completed Domain, plus the income Boons. Restive ground pays
+     nobody, so it returns 0 there.
+
+     Extracted so the "+N" drawn on the board and the treasury total are the
+     same calculation. A tier 2 pays 3, 4, 6, 7 or 8 depending on the owner;
+     any second copy of that arithmetic would drift. `completed` is optional
+     and only passed by incomeFor, which already has it for the whole sweep. */
+  holdingIncome(pi, id, completed) {
+    const rs = G.regions[id];
+    if (rs.holding < 1 || rs.unrest > 0) return 0;
+    const p = G.players[pi];
+    const dom = REGIONS[id].domain;
+    const done = completed ? completed.includes(dom) : Rules.domainComplete(pi, dom);
+    let h = HOLDING_INCOME[rs.holding - 1];
+    if (done) h *= 2;
+    if (Rules.hasBoon(p, 'coffers')) h += 1;
+    if (Rules.patronOf(p).id === 'ilthara') h += 1;
+    return h;
+  },
+
   incomeFor(pi) {
     const p = G.players[pi];
     if (p.surrendered) return 0;
@@ -2183,13 +2451,7 @@ const Rules = {
       if (rs.unrest > 0) continue;        // conquered ground pays nobody yet
       total += REGION_TYPES[def.type].income;
 
-      if (rs.holding > 0) {
-        let h = HOLDING_INCOME[rs.holding - 1];
-        if (completed.includes(def.domain)) h *= 2;
-        if (Rules.hasBoon(p, 'coffers')) h += 1;
-        if (Rules.patronOf(p).id === 'ilthara') h += 1;
-        total += h;
-      }
+      total += Rules.holdingIncome(pi, id, completed);
       // units that pay their own way
       if (Rules.hasBoon(p, 'highroads')) total += 1;
       total += Rules.countUnit(rs, 'caravaneer');
@@ -4179,16 +4441,34 @@ const MapView = {
     return out;
   },
 
-  partHolding(rs, c) {
+  /* The Holding, with what it actually pays stapled to it. Reading a board
+     used to mean knowing the tier table by heart AND remembering whether the
+     Domain was complete; the number was always derivable and never shown. */
+  partHolding(rs, c, id) {
     if (rs.holding < 1) return '';
-    const tip = '<b>Holding, tier ' + rs.holding + '</b><br>Pays +' + HOLDING_INCOME[rs.holding - 1]
-      + ' Tribute each Round'
-      + (rs.holding >= 2 ? ', and adds a defence die unless the attacker brings Siege' : '')
-      + (rs.holding < 3 ? '. Upgradeable to tier ' + (rs.holding + 1) + '.' : '. Fully developed.');
+    const owner = rs.owner;
+    const pays = owner === null ? 0 : Rules.holdingIncome(owner, id);
+    const restive = rs.unrest > 0;
+    const base = HOLDING_INCOME[rs.holding - 1];
+    const boosted = pays > base;
+
+    const tip = '<b>Holding, tier ' + rs.holding + '</b><br>'
+      + (restive
+          ? 'Restive — pays nothing until you hold it through a Turn.'
+          : 'Pays <b>+' + pays + '</b> Tribute each Round'
+            + (boosted ? ' (tier ' + rs.holding + ' is ' + base
+                 + ', doubled or raised by a Domain or a Boon)' : ''))
+      + (rs.holding >= 2 ? '<br>Adds a defence die unless the attacker brings Siege' : '')
+      + (rs.holding < 3 ? '<br>Upgradeable to tier ' + (rs.holding + 1) + '.' : '<br>Fully developed.');
+
+    const label = restive ? '+0' : '+' + pays;
+    const cls = 'hold-inc' + (restive ? ' restive' : boosted ? ' boosted' : '');
+
     return `<g class="holding-mark" data-tip="${tip.replace(/"/g, '&quot;')}"
       transform="translate(${c.x + 30},${c.y - 14})">
-      <rect x="-13" y="-13" width="26" height="26" fill="transparent"/>
-      ${MapView.holdingShape(rs.holding)}</g>`;
+      <rect x="-13" y="-20" width="26" height="40" fill="transparent"/>
+      ${MapView.holdingShape(rs.holding)}
+      <text class="${cls}" x="0" y="19">${label}</text></g>`;
   },
 
   partUnrest(rs, c) {
@@ -4323,7 +4603,7 @@ const MapView = {
     out += `<g class="glyph" transform="translate(${c.x},${c.y - 26})" fill="rgba(242,239,232,.42)"
       stroke="rgba(242,239,232,.42)" stroke-linecap="round">${MapView.glyph(def.type)}</g>`;
     out += `<text class="region-name" x="${c.x}" y="${c.y + 2}">${esc(def.name)}</text>`;
-    out += MapView.partHolding(rs, c);
+    out += MapView.partHolding(rs, c, id);
     out += MapView.partUnrest(rs, c);
     out += MapView.partTroops(id, rs, c, owner);
     out += MapView.partChampion(id, c);
@@ -4573,8 +4853,18 @@ const UI = {
       UI.pv.ctx  = 'ctx' in opts ? opts.ctx : null;
 
       const variant = opts.variant || 'sheet';
-      layer.innerHTML =
-        `<div class="pv pv--${variant}" role="dialog" aria-modal="true"
+
+      /* A strip floats OVER the board and deliberately does not block it: the
+         layer stops taking pointer events so the map underneath stays live and
+         you can tap a different territory without dismissing anything first.
+         That is the whole difference between this and the sheet it replaces —
+         the sheet was 383px of an 812px screen, half the board, and the map
+         behind it was dead. */
+      layer.classList.toggle('is-strip', variant === 'strip');
+      layer.innerHTML = variant === 'strip'
+        ? `<div class="pv pv--strip" role="dialog"
+                aria-label="${esc(opts.aria || opts.kind)}">${opts.body || ''}</div>`
+        : `<div class="pv pv--${variant}" role="dialog" aria-modal="true"
               aria-label="${esc(opts.aria || opts.titleText || opts.kind)}">
            <div class="pv-head">
              <span class="pv-title">${opts.title || ''}</span>
@@ -4586,7 +4876,8 @@ const UI = {
       layer.hidden = false;
 
       const card = layer.querySelector('.pv');
-      card.querySelector('.pv-close').addEventListener('click', UI.pv.close);
+      const x = card.querySelector('.pv-close');
+      if (x) x.addEventListener('click', UI.pv.close);
 
       /* An anchored bubble is desktop-only; the phone media query flattens
          .pv--anchor back to a sheet, so skip the maths entirely there. */
@@ -4600,7 +4891,7 @@ const UI = {
       }
 
       if (opts.wire) opts.wire(card);
-      const first = card.querySelector('.pv-act:not(.is-off), button:not(.pv-close)');
+      const first = card.querySelector('.as-go, .r2-row, button:not(.pv-close)');
       if (first && !UI.phone()) first.focus();
     },
 
@@ -4610,6 +4901,7 @@ const UI = {
       UI.pv.ctx  = null;
       if (!layer) return;
       layer.hidden = true;
+      layer.classList.remove('is-strip');
       layer.innerHTML = '';
     },
 
@@ -5054,49 +5346,112 @@ const UI = {
   /* Tap a region you hold and you get the six actions. Tap one you do not and
      you get what is worth knowing about it and nothing to press, because there
      is nothing there you could do. */
+  /* Tap a region you hold and the six actions arrive as a STRIP floating over
+     the board — not a sheet under it. The map stays visible and stays live:
+     tapping another territory switches to it rather than dismissing first.
+
+     The reference detail (ground, income, what raises here) is behind the "i".
+     It is worth a tap when you want it and not worth half the screen. */
   openRegion(id, at) {
     const pi = UI.actingIndex();
     const rs = G.regions[id], def = REGIONS[id];
     const mine = rs.owner === pi;
     const playable = mine && G.phase !== 'gameover' && !AI.isAI(pi) && !UI.modalOpen();
-    const info = UI.regionInfo(id);
 
     if (!playable) {
       UI.pv.open({ kind: 'region', ctx: id, variant: 'anchor', at: at,
-        title: esc(def.name), aria: def.name, body: info });
+        title: esc(def.name), aria: def.name, body: UI.regionInfo(id) });
       return;
     }
 
     const acts = UI.actionModel(id);
     const left = G.phase === 'reaction'
       ? (G.reactionActionTaken ? 0 : 1) : Rules.actionsLeft(pi);
-    const grid = '<div class="pv-grid">' + acts.map(a =>
-        '<button class="pv-act' + (a.why ? ' is-off' : '') + (a.primary ? ' is-primary' : '')
-        + '" type="button" data-a="' + a.id + '"'
-        + (a.why ? ' aria-disabled="true"' : '')
-        + ' aria-label="' + esc(a.label) + (a.why ? ' — unavailable' : '') + '">'
-        + Icons.svg(a.id, 26, 'currentColor')
-        + '<span>' + esc(a.label) + '</span></button>').join('')
-      + '</div>';
+    const start = Math.max(0, acts.findIndex(a => !a.why));
+
+    const icons = acts.map((a, i) =>
+      '<button class="as-ico' + (a.why ? ' is-off' : '') + '" type="button" data-i="' + i + '"'
+      + ' aria-label="' + esc(a.label) + (a.why ? ' — unavailable' : '') + '">'
+      + Icons.svg(a.id, 22, 'currentColor') + '</button>').join('');
 
     UI.pv.open({
-      kind: 'region', ctx: id, variant: 'sheet', flush: true,
-      title: esc(def.name),
-      sub: '<span class="pv-budget' + (left ? '' : ' spent') + '">' + left
-         + ' action' + (left === 1 ? '' : 's') + '</span>',
-      aria: def.name,
-      body: grid + '<div class="pv-info">' + info + '</div>',
+      kind: 'region', ctx: id, variant: 'strip', aria: def.name + ' actions',
+      body:
+        /* The info button used to hold a row of its own, which cost the strip
+           44px — a fifth of its height for one control. It sits in the footer
+           beside cancel and confirm now, and the header is one line of text. */
+        '<div class="st-top"><span class="st-where">' + esc(def.name)
+      + '  <em class="' + (left ? '' : 'spent') + '">' + left + ' left</em></span></div>'
+      + '<div class="st-icons">' + icons + '</div>'
+      + '<input type="range" class="as-range" min="0" max="' + (acts.length - 1) + '"'
+      + ' step="1" value="' + start + '" aria-label="Choose an action">'
+      + '<div class="st-foot">'
+      + '  <button class="st-x" type="button" aria-label="Cancel">×</button>'
+      + '  <span class="st-read"><b class="as-name"></b><i class="as-why"></i></span>'
+      + '  <button class="st-i" type="button" aria-label="About this region">i</button>'
+      + '  <button class="st-ok" type="button" aria-label="Confirm">✓</button>'
+      + '</div>'
+      + '<div class="st-info" hidden>' + UI.regionInfo(id) + '</div>',
       wire: card => {
-        acts.forEach(a => {
-          const b = card.querySelector('[data-a="' + a.id + '"]');
-          if (!b) return;
-          /* A refusal must NOT close or repaint: the answer to "why not" is
-             destroyed by the very render that would replace the button. */
-          if (a.why) { b.addEventListener('click', () => UI.fx.refuse(b, a.why)); return; }
-          b.addEventListener('click', UI.pv.commit(a.run));
+        const range = card.querySelector('.as-range');
+        const name  = card.querySelector('.as-name');
+        const why   = card.querySelector('.as-why');
+        const ok    = card.querySelector('.st-ok');
+        const ics   = [...card.querySelectorAll('.as-ico')];
+        const info  = card.querySelector('.st-info');
+        let committed = false;
+
+        /* text nodes and classes only — never innerHTML on this subtree */
+        const show = i => {
+          const a = acts[i];
+          ics.forEach((b, j) => b.classList.toggle('on', j === i));
+          name.textContent = a.label;
+          why.textContent  = a.why || UI.actionBlurb(a.id);
+          why.classList.toggle('blocked', !!a.why);
+          ok.classList.toggle('is-off', !!a.why);
+          ok.setAttribute('aria-label', a.why ? a.label + ' — unavailable' : 'Confirm ' + a.label);
+        };
+        const select = i => {
+          i = Math.max(0, Math.min(acts.length - 1, i));
+          if (+range.value !== i) range.value = i;
+          show(i);
+        };
+
+        range.addEventListener('input', () => show(+range.value));
+        ics.forEach(b => b.addEventListener('click', () => select(+b.dataset.i)));
+        card.querySelector('.st-x').addEventListener('click', UI.pv.close);
+        card.querySelector('.st-i').addEventListener('click', e => {
+          info.hidden = !info.hidden;
+          e.currentTarget.classList.toggle('on', !info.hidden);
         });
+
+        ok.addEventListener('click', () => {
+          const a = acts[+range.value];
+          /* A refusal must NOT close or repaint: the answer to "why not" is
+             destroyed by the very render that would replace the control. */
+          if (a.why) { UI.fx.refuse(ok, a.why); return; }
+          if (committed) return;          /* rule 1f: one tap, one action */
+          committed = true;
+          UI.pv.close();
+          a.run();
+        });
+
+        select(start);
       }
     });
+  },
+
+  /* One line on what each action does, shown under the slider when the action
+     is available. The refusal reason takes this slot when it is not. */
+  actionBlurb(id) {
+    return {
+      march:    'Move hosts across your own ground, or attack anything touching this region.',
+      raise:    'Buy hosts here. On-type units cost list price, off-type cost double.',
+      build:    'Raise or upgrade a Holding: more income every Round, and a defence die at tier 2.',
+      monument: 'Turn hoarded Tribute into Renown XP. Once per Round.',
+      hold:     'Bank your Reaction without spending it.',
+      endturn:  'Collect Tribute and pass play on.'
+    }[id] || '';
   },
 
   /* Building is the one action whose price is not obvious from the board, so
@@ -5273,10 +5628,21 @@ const UI = {
         + '<span>' + esc(U.rule) + '</span></div>';
     }).join('');
 
-    const regions = Object.keys(REGION_TYPES).map(t =>
-      '<div class="ref-item"><b>' + esc(REGION_TYPES[t].name) + ' <i>'
-      + REGION_TYPES[t].income + ' income</i></b><span>'
-      + esc(REGION_TYPES[t].note) + '</span></div>').join('');
+    /* Derived from UNITS.raisedAt, NOT from REGION_TYPES.raises — that list is
+       an AI hint and omits every patron unit (see the note in data.js). */
+    const anywhere = Object.keys(UNITS).filter(u => UNITS[u].raisedAt.includes('*'));
+    const regions = Object.keys(REGION_TYPES).map(t => {
+      const here = Object.keys(UNITS).filter(u => UNITS[u].raisedAt.includes(t));
+      const named = here.map(u => esc(UNITS[u].name)
+        + (UNITS[u].patron ? ' <em class="ref-only">' + esc(PATRONS[UNITS[u].patron].name)
+             + '</em>' : ''));
+      return '<div class="ref-item"><b>' + esc(REGION_TYPES[t].name) + ' <i>'
+        + REGION_TYPES[t].income + ' income</i></b><span>'
+        + esc(REGION_TYPES[t].note)
+        + '<br><b class="ref-raises">Raises</b> '
+        + (named.length ? named.join(', ') : '<span class="ref-none">nothing on-type</span>')
+        + '</span></div>';
+    }).join('');
 
     const spd = UI.speedCtl;
     UI.pv.open({
@@ -5293,7 +5659,9 @@ const UI = {
         + 'caps. Renown is earned by playing, and losing battles still earns it — or it can '
         + 'be bought outright with a Monument.</p>'
       + '<div class="pv-sec">Hosts</div><div class="ref-grid">' + units + '</div>'
-      + '<div class="pv-sec">Regions</div><div class="ref-grid">' + regions + '</div>'
+      + '<div class="pv-sec">Regions</div>'
+      + '<p class="pv-note">Every region also raises ' + anywhere.map(u => esc(UNITS[u].name)).join(', ') + ', wherever you hold ground.</p>'
+      + '<div class="ref-grid">' + regions + '</div>'
       + '<div class="pv-sec">Scoring</div><div class="ref-grid">'
       + '<div class="ref-item"><b>Complete Domain <i>' + VP.domain + ' vp</i></b>'
         + '<span>Every region in a Domain, held at the end. Doubles Holding income too.</span></div>'
@@ -5639,118 +6007,155 @@ const UI = {
   /* Raising is a batch order on sliders: you see how many of each unit you
      already hold here, how many you are adding, and the running total against
      your treasury — so you can't accidentally over- or under-spend. */
+  /* ---- raising hosts: a strip, not a dialog ----
+
+     Kinds on the left, amount on the right, both on the board rather than over
+     it. The full-screen version of this covered the region you were raising in.
+
+     One Raise action still buys several kinds — the controls navigate the
+     roster, they do not narrow the rule. Cost colour is what you scan for:
+     verdigris on-type, blood at the off-type double, dim when a Holding is
+     missing and the unit cannot be raised there at all.
+
+     Built ONCE; only text nodes and classes are written afterwards. Bind
+     `input` OR `change`, never both — both fire on release, and rebuilding
+     under a moving finger is what stopped the old slider reaching its top. */
   openRaise(regionId) {
     const pi = UI.actingIndex();
     const p = G.players[pi];
     const rs = G.regions[regionId];
-    const list = Rules.availableUnits(pi);
     const order = {};
-    let committed = false;                 // guards against a double-fire
+    let committed = false;
 
-    const costOf = u => Rules.raiseCost(pi, regionId, u).cost;
-    const totalCost = () => Object.keys(order).reduce((a, u) => a + order[u] * costOf(u), 0);
+    /* Affordability is the amount slider's cap, NOT a disabled flag: it moves
+       as you spend on other kinds. The old dialog greyed out whatever you
+       could not afford when it opened and never re-enabled it. */
+    const meta = Rules.availableUnits(pi).map(u => {
+      const rc = Rules.raiseCost(pi, regionId, u);
+      return { u: u, name: UNITS[u].name, rule: UNITS[u].rule, cost: rc.cost,
+               onType: rc.onType, hard: !!rc.needsHolding,
+               why: rc.needsHolding ? 'Off-type raising needs a Holding here.' : '',
+               have: Rules.countUnit(rs, u) };
+    });
 
-    /* Built ONCE. The previous version re-rendered the whole dialog on every
-       slider `input` event, which destroyed the element under the player's
-       finger mid-drag — that is what stopped the slider reaching the top of
-       its range and what let a single tap land on two different buttons.
-       Now the markup is static and only the numbers are updated in place. */
-    const rows = list.map(u => {
-      const chk = Rules.canRaise(pi, regionId, u);
-      const { cost, onType } = Rules.raiseCost(pi, regionId, u);
-      const have = Rules.countUnit(rs, u);
-      const blocked = !chk.ok;
-      const cap = blocked ? 0 : Math.min(20, Math.floor(p.tribute / Math.max(1, cost)));
-      return `<div class="slider-row raise-row ${blocked ? 'blocked' : ''}">
-        <div class="nm">
-          <span class="rn-title">${UI.troopChip(u, p.colour.hex)} ${esc(UNITS[u].name)}
-            <em class="rn-have">have ${have}</em></span>
-          <small>${esc(UNITS[u].rule)} · <b>${cost}t</b> ${onType ? '' : '(off-type ×2)'}
-            ${blocked ? '· ' + esc(chk.why || '') : ''}</small>
-        </div>
-        <input type="range" min="0" max="${cap}" value="0" step="1" data-raise="${u}"
-               ${blocked ? 'disabled' : ''} aria-label="${esc(UNITS[u].name)}">
-        <div class="ct"><b data-count="${u}">+0</b><span class="rn-sub" data-sub="${u}">0t</span></div>
-      </div>`;
-    }).join('');
+    const totalCost  = () => meta.reduce((a, m) => a + (order[m.u] || 0) * m.cost, 0);
+    const totalHosts = () => meta.reduce((a, m) => a + (order[m.u] || 0), 0);
+    let sel = Math.max(0, meta.findIndex(m => !m.hard));
 
-    UI.modal(`
-      <div class="eyebrow">Raise hosts · ${esc(REGION_TYPES[REGIONS[regionId].type].name)}</div>
-      <h2>${esc(REGIONS[regionId].name)}</h2>
-      <p>Off-type units cost double and need a Holding here.</p>
-      <div class="stepper-list">${rows}</div>
-      <div class="tally">
-        <span>Cost <b data-spent>0</b></span>
-        <span>Treasury after <b data-left>${p.tribute}</b></span>
-        <span>Hosts here after <b data-hosts>${Rules.hostCount(rs)}</b></span>
-      </div>
-      <div class="modal-actions">
-        <button class="ghost" data-close>Cancel</button>
-        <button class="primary" id="raise-go" disabled>Raise</button>
-      </div>`);
+    const chips = meta.map((m, i) =>
+      '<button class="rk" type="button" data-i="' + i + '"'
+      + (m.hard ? ' data-hard="1"' : '')
+      + ' aria-label="' + esc(m.name) + ', ' + m.cost + ' Tribute'
+      + (m.hard ? ', unavailable here' : m.onType ? ', raised here' : ', off-type double cost') + '">'
+      + '<span class="rk-ico">' + UI.troopChip(m.u, p.colour.hex) + '</span>'
+      + '<span class="rk-cost ' + (m.hard ? 'blocked' : m.onType ? 'on' : 'off') + '">'
+      + m.cost + '</span>'
+      + '<span class="rk-n" data-ct="' + m.u + '"></span>'
+      + '</button>').join('');
 
-    const modal = $('#modal');
-    const sliders = [...modal.querySelectorAll('[data-raise]')];
-    const go = $('#raise-go');
+    UI.pv.open({
+      kind: 'raise', ctx: regionId, variant: 'strip', aria: 'Raise hosts',
+      body:
+        '<div class="st-top">'
+      + '  <span class="st-where">Raise · ' + esc(REGIONS[regionId].name)
+      + '    <em class="rz-tally"></em></span>'
+      + '</div>'
+      + '<div class="rz">'
+      + '  <div class="rz-kinds">' + chips + '</div>'
+      + '  <div class="rz-amt">'
+      + '    <div class="rz-note"></div>'
+      + '    <input type="range" class="r2-count" min="0" max="1" step="1" value="0"'
+      + '           aria-label="How many to raise">'
+      + '    <div class="rz-n"><b class="r2-amt-n">0</b></div>'
+      + '  </div>'
+      + '</div>'
+      + '<div class="st-foot">'
+      + '  <button class="st-x" type="button" aria-label="Cancel">×</button>'
+      + '  <span class="st-read"><b class="rz-name"></b><i class="rz-rule"></i></span>'
+      + '  <button class="st-ok" type="button" aria-label="Confirm">✓</button>'
+      + '</div>',
+      wire: card => {
+        const count = card.querySelector('.r2-count');
+        const amtN  = card.querySelector('.r2-amt-n');
+        const nameEl = card.querySelector('.rz-name');
+        const ruleEl = card.querySelector('.rz-rule');
+        const noteEl = card.querySelector('.rz-note');
+        const tally  = card.querySelector('.rz-tally');
+        const ok     = card.querySelector('.st-ok');
+        const kinds  = [...card.querySelectorAll('.rk')];
 
-    const sync = () => {
-      const spent = totalCost();
-      const left = p.tribute - spent;
+        const capFor = i => {
+          const m = meta[i];
+          if (m.hard) return 0;
+          const want = order[m.u] || 0;
+          const others = totalCost() - want * m.cost;
+          return Math.min(20, want + Math.max(0, Math.floor((p.tribute - others) / Math.max(1, m.cost))));
+        };
 
-      for (const el of sliders) {
-        const u = el.dataset.raise;
-        const cost = costOf(u);
-        const want = order[u] || 0;
-        // what this unit could still afford given what the others have taken
-        const cap = Math.min(20, want + Math.max(0, Math.floor(left / Math.max(1, cost))));
-        if (+el.max !== cap && !el.disabled) el.max = cap;
-        modal.querySelector(`[data-count="${u}"]`).textContent = '+' + want;
-        modal.querySelector(`[data-sub="${u}"]`).textContent = (want * cost) + 't';
-      }
+        const sync = () => {
+          const spent = totalCost();
+          const m = meta[sel];
 
-      modal.querySelector('[data-spent]').textContent = spent;
-      const leftEl = modal.querySelector('[data-left]');
-      leftEl.textContent = left;
-      leftEl.style.color = left < 0 ? 'var(--blood)' : 'var(--bronze)';
-      modal.querySelector('[data-hosts]').textContent =
-        Rules.hostCount(rs) + Object.values(order).reduce((a, b) => a + b, 0);
+          kinds.forEach((el, i) => {
+            el.classList.toggle('on', i === sel);
+            el.classList.toggle('is-hard', meta[i].hard);
+            const n = order[meta[i].u] || 0;
+            const ct = el.querySelector('[data-ct]');
+            ct.textContent = n ? n : '';
+            ct.classList.toggle('has', n > 0);
+          });
 
-      go.disabled = spent === 0 || left < 0;
-      go.textContent = spent === 0 ? 'Raise' : `Raise for ${spent}t`;
-    };
+          nameEl.textContent = m.name;
+          ruleEl.textContent = m.hard ? m.why : m.rule;
+          ruleEl.classList.toggle('blocked', m.hard);
+          noteEl.textContent = m.hard ? 'blocked'
+            : m.cost + 't each' + (m.onType ? '' : ' · double');
+          noteEl.className = 'rz-note ' + (m.hard ? 'blocked' : m.onType ? 'on' : 'off');
 
-    sliders.forEach(el => {
-      // `input` only — binding `change` as well fired the handler twice per drag
-      el.addEventListener('input', () => {
-        const u = el.dataset.raise;
-        const v = Math.max(0, +el.value);
-        if (v > 0) order[u] = v; else delete order[u];
-        if (totalCost() > p.tribute) {          // never let a slider overdraw
-          const cost = costOf(u);
-          const others = totalCost() - v * cost;
-          order[u] = Math.max(0, Math.floor((p.tribute - others) / Math.max(1, cost)));
-          if (!order[u]) delete order[u];
-          el.value = order[u] || 0;
-        }
+          const cap = capFor(sel);
+          if (+count.max !== cap) count.max = cap;
+          const want = Math.min(order[m.u] || 0, cap);
+          if (+count.value !== want) count.value = want;
+          count.disabled = cap === 0;
+          amtN.textContent = want ? '+' + want : '0';
+          amtN.classList.toggle('has', want > 0);
+
+          tally.textContent = spent
+            ? spent + 't · ' + totalHosts() + ' host' + (totalHosts() === 1 ? '' : 's')
+            : p.tribute + 't in hand';
+          tally.classList.toggle('spending', spent > 0);
+          ok.classList.toggle('is-off', spent === 0);
+        };
+
+        const select = i => { sel = Math.max(0, Math.min(meta.length - 1, i)); sync(); };
+        kinds.forEach(el => el.addEventListener('click', () => select(+el.dataset.i)));
+
+        count.addEventListener('input', () => {
+          const m = meta[sel];
+          if (m.hard) { count.value = 0; return; }
+          const v = Math.max(0, Math.min(capFor(sel), +count.value));
+          if (v > 0) order[m.u] = v; else delete order[m.u];
+          if (+count.value !== v) count.value = v;
+          sync();
+        });
+
+        card.querySelector('.st-x').addEventListener('click', UI.pv.close);
+
+        ok.addEventListener('click', () => {
+          if (totalCost() === 0) { UI.fx.refuse(ok, 'Choose a host and a number first.'); return; }
+          if (committed) return;                  /* one tap, one action */
+          committed = true;
+          for (const u in order) {
+            for (let i = 0; i < order[u]; i++) Rules.raiseHost(pi, regionId, u);
+          }
+          UI.pv.close();
+          UI.spendAction();
+        });
+
         sync();
-      });
-    });
-
-    go.addEventListener('click', () => {
-      if (committed) return;                    // one tap, one action
-      committed = true;
-      for (const u in order) {
-        for (let i = 0; i < order[u]; i++) Rules.raiseHost(pi, regionId, u);
       }
-      UI.closeModal();
-      UI.spendAction();
     });
-
-    sync();
   },
-
-  /* the unit's map silhouette, inline, so the same shape means the same thing
-     in the dialog, the key and the board */
 
   /* ---- monuments: Tribute into legend ---- */
 
