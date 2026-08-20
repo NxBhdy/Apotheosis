@@ -4638,6 +4638,35 @@ const MapView = {
     return out + `</g>`;
   },
 
+  /* Move the highlight WITHOUT rebuilding the board.
+
+     Selection is nothing but three classes — see .region.selected / .target /
+     .dim in style.css. It used to go through renderMap(), which regenerates
+     roughly a megabyte of markup, reparses ~980 nodes and invalidates every
+     turbulence filter on the board. That is a full repaint to move a glow, and
+     it ran on every single tap. This retoggles the classes already on the
+     nodes already there, and touches nothing else.
+
+     Anything that changes what a territory CONTAINS — hosts, holdings, owner —
+     still needs a real renderMap(). This is only for what is highlighted. */
+  paintSelection() {
+    const svg = $('#map');
+    if (!svg) return;
+    const sel = G.selected;
+    const marching = UI.mode === 'march';
+    const targets = (marching && sel) ? UI.marchTargets(sel) : {};
+    svg.querySelectorAll('.region').forEach(el => {
+      const id = el.dataset.region;
+      el.classList.toggle('selected', id === sel);
+      el.classList.toggle('target', !!targets[id]);
+      el.classList.toggle('dim', marching && !targets[id] && id !== sel);
+    });
+    svg.querySelectorAll('.region-content').forEach(el => {
+      const id = el.dataset.region;
+      el.classList.toggle('dim', marching && !targets[id] && id !== sel);
+    });
+  },
+
   renderMap() {
     const svg = $('#map');
     const ctx = {
@@ -4949,6 +4978,7 @@ const UI = {
   /* the board is drawn by MapView (js/render-map.js); these keep the old
      call sites working */
   renderMap()                  { MapView.renderMap(); },
+  paintSelection()             { MapView.paintSelection(); },
   troopShape(u, c)             { return MapView.troopShape(u, c); },
   troopChip(u, c)              { return MapView.troopChip(u, c); },
   holdingShape(t)              { return MapView.holdingShape(t); },
@@ -5509,7 +5539,11 @@ const UI = {
     }
     UI.mode = 'idle';
     G.selected = (G.selected === id) ? null : id;
-    UI.render();
+    /* Selecting changes what is HIGHLIGHTED, not what is on the board, so this
+       must not go through UI.render(). That rebuilt ~1MB of SVG and recomputed
+       every turbulence filter to move a glow — on every tap. */
+    UI.paintSelection();
+    UI.renderHint();
     if (G.selected) UI.openRegion(G.selected, ev ? { x: ev.clientX, y: ev.clientY } : null);
     else UI.pv.close();
   },
@@ -5550,7 +5584,8 @@ const UI = {
     return [
       { id: 'march', label: UI.mode === 'march' ? 'Cancel march' : 'March / Attack',
         why: whyMarch,
-        run: () => { UI.mode = UI.mode === 'march' ? 'idle' : 'march'; UI.render(); } },
+        run: () => { UI.mode = UI.mode === 'march' ? 'idle' : 'march';
+                     UI.paintSelection(); UI.renderHint(); } },
       { id: 'raise', label: 'Raise host', why: whyRaise, run: () => UI.openRaise(id) },
       { id: 'build', label: build.ok ? 'Build (' + build.cost + ')' : 'Build Holding',
         why: whyBuild, run: () => UI.confirmBuild(pi, id, build) },
