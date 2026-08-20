@@ -5068,66 +5068,146 @@ const UI = {
     k: 1, cx: MAP_W / 2, cy: MAP_H / 2,
     MIN: 1, MAX: 5,
     swallow: false,
-    _wired: false, _drag: null, _pinch: 0, _moved: false, _held: null,
-    _pts: new Map(),
+
+    _wired: false,
+    _pts: new Map(),        /* live pointers, in the order they landed */
+    _mode: null,            /* null | 'pan' | 'pinch'                  */
+    _anchor: null,          /* last pan position, in client px         */
+    _dist: 0,               /* pinch baseline distance                 */
+    _mid: null,             /* pinch baseline midpoint                 */
+    _moved: false,
+    _held: null,
+    _rect: null,            /* cached #map rect, see rect()            */
+    _raf: 0,
+
+    /* ---- geometry, computed from OUR OWN state ----
+
+       Never read the viewBox back out of the DOM. It is written with toFixed,
+       so feeding it into the next step compounds the rounding on every single
+       pointermove and the board visibly drifts under the fingers. k/cx/cy are
+       the truth; the attribute is only ever an output. */
+
+    rect() {
+      const c = UI.cam;
+      if (c._rect) return c._rect;
+      const svg = $('#map');
+      if (!svg) return null;
+      const r = svg.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      /* Cached for the life of a gesture. getBoundingClientRect forces a
+         synchronous layout, and doing that twice per pointermove at touch
+         sample rates IS the jank. Invalidated on gesture end and on resize. */
+      c._rect = { left: r.left, top: r.top, width: r.width, height: r.height };
+      return c._rect;
+    },
+
+    /* the map-unit size of the window at the current k */
+    view() {
+      const r = UI.cam.rect();
+      if (!r) return null;
+      const A = r.width / r.height;
+      const w = Math.max(MAP_W, MAP_H * A) / UI.cam.k;
+      return { w: w, h: w / A, r: r };
+    },
 
     /* the zoom at which the board exactly fills the pane's height */
     fillK() {
-      const svg = $('#map'); if (!svg) return 2.7;
-      const r = svg.getBoundingClientRect();
-      if (!r.width || !r.height) return 2.7;
+      const r = UI.cam.rect();
+      if (!r) return 2.7;
       const A = r.width / r.height;
       return Math.max(MAP_W, MAP_H * A) / (MAP_H * A);
     },
 
-    apply() {
-      const svg = $('#map'); if (!svg) return;
-      const r = svg.getBoundingClientRect();
-      if (!r.width || !r.height) return;
-      const A = r.width / r.height;
+    clampNow() {
       const c = UI.cam;
       c.k = Math.max(c.MIN, Math.min(c.MAX, c.k));
-      /* at k = 1 the window is whatever contains the whole board at this
-         aspect, so "zoomed all the way out" always means "I can see it all" */
-      const w = Math.max(MAP_W, MAP_H * A) / c.k;
-      const h = w / A;
-      c.cx = w >= MAP_W ? MAP_W / 2 : Math.max(w / 2, Math.min(MAP_W - w / 2, c.cx));
-      c.cy = h >= MAP_H ? MAP_H / 2 : Math.max(h / 2, Math.min(MAP_H - h / 2, c.cy));
+      const v = c.view();
+      if (!v) return null;
+      c.cx = v.w >= MAP_W ? MAP_W / 2 : Math.max(v.w / 2, Math.min(MAP_W - v.w / 2, c.cx));
+      c.cy = v.h >= MAP_H ? MAP_H / 2 : Math.max(v.h / 2, Math.min(MAP_H - v.h / 2, c.cy));
+      return v;
+    },
+
+    /* One attribute write per frame. pointermove fires faster than the display
+       refreshes, so writing on every event just queues work that is thrown
+       away — and on a phone that backlog is what reads as stutter. */
+    schedule() {
+      const c = UI.cam;
+      c.clampNow();
+      if (c._raf) return;
+      c._raf = requestAnimationFrame(() => { c._raf = 0; c.paint(); });
+    },
+
+    paint() {
+      const c = UI.cam;
+      const svg = $('#map');
+      const v = c.clampNow();
+      if (!svg || !v) return;
       svg.setAttribute('viewBox',
-        (c.cx - w / 2).toFixed(1) + ' ' + (c.cy - h / 2).toFixed(1) + ' '
-        + w.toFixed(1) + ' ' + h.toFixed(1));
+        (c.cx - v.w / 2).toFixed(2) + ' ' + (c.cy - v.h / 2).toFixed(2) + ' '
+        + v.w.toFixed(2) + ' ' + v.h.toFixed(2));
       const fit = $('#cam-fit');
       if (fit) fit.hidden = c.k <= c.MIN + 0.01;
     },
 
-    /* map units per CSS pixel, for turning a drag into a pan */
-    unitsPerPx() {
-      const svg = $('#map');
-      const r = svg.getBoundingClientRect();
-      return svg.viewBox.baseVal.width / r.width;
-    },
+    /* immediate write, for call sites outside a gesture */
+    apply() { UI.cam._rect = null; UI.cam.paint(); },
 
-    /* zoom about a screen point, holding the map coordinate under it fixed */
+    /* zoom about a screen point, holding the map point under it fixed */
     zoomAt(factor, clientX, clientY) {
-      const svg = $('#map'); if (!svg) return;
-      const r = svg.getBoundingClientRect();
-      const vb = svg.viewBox.baseVal;
-      const mx = vb.x + ((clientX - r.left) / r.width) * vb.width;
-      const my = vb.y + ((clientY - r.top) / r.height) * vb.height;
       const c = UI.cam;
+      const v = c.view();
+      if (!v || !isFinite(factor) || factor <= 0) return;
       const k0 = c.k;
-      c.k = Math.max(c.MIN, Math.min(c.MAX, c.k * factor));
-      const s = c.k / k0;
-      if (s === 1) return;
-      c.cx = mx + (c.cx - mx) / s;
-      c.cy = my + (c.cy - my) / s;
-      c.apply();
+      const k1 = Math.max(c.MIN, Math.min(c.MAX, k0 * factor));
+      if (k1 === k0) return;
+      const mx = (c.cx - v.w / 2) + ((clientX - v.r.left) / v.r.width)  * v.w;
+      const my = (c.cy - v.h / 2) + ((clientY - v.r.top)  / v.r.height) * v.h;
+      const sc = k1 / k0;
+      c.k  = k1;
+      c.cx = mx + (c.cx - mx) / sc;
+      c.cy = my + (c.cy - my) / sc;
+      c.schedule();
     },
 
-    reset() { const c = UI.cam; c.k = 1; c.cx = MAP_W / 2; c.cy = MAP_H / 2; c.apply(); },
+    panBy(dxPx, dyPx) {
+      const c = UI.cam;
+      const v = c.view();
+      if (!v) return;
+      const u = v.w / v.r.width;
+      c.cx -= dxPx * u;
+      c.cy -= dyPx * u;
+      c.schedule();
+    },
+
+    reset() {
+      const c = UI.cam;
+      c._rect = null;
+      c.k = 1; c.cx = MAP_W / 2; c.cy = MAP_H / 2;
+      c.paint();
+    },
+
     step(f) {
-      const svg = $('#map'); const r = svg.getBoundingClientRect();
-      UI.cam.zoomAt(f, r.left + r.width / 2, r.top + r.height / 2);
+      const c = UI.cam;
+      c._rect = null;
+      const r = c.rect();
+      if (!r) return;
+      c.zoomAt(f, r.left + r.width / 2, r.top + r.height / 2);
+    },
+
+    /* the two OLDEST live pointers, so a stray third finger cannot reorder the
+       pair the pinch is measured from mid-gesture */
+    pair() {
+      const v = [...UI.cam._pts.values()];
+      return v.length >= 2 ? [v[0], v[1]] : null;
+    },
+
+    seedPinch() {
+      const c = UI.cam;
+      const p = c.pair();
+      if (!p) { c._dist = 0; c._mid = null; return; }
+      c._dist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      c._mid  = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
     },
 
     wire() {
@@ -5136,92 +5216,136 @@ const UI = {
       UI.cam._wired = true;
       const c = UI.cam;
 
-      /* DO NOT capture the pointer here.
+      /* DO NOT capture on pointerdown.
 
          A captured pointer retargets the click the browser sends on release to
-         the CAPTURING element, so every tap landed on #map-wrap instead of on
-         the .region path underneath it and UI.clickRegion was never called —
-         the whole board went dead. Capture is taken below, only once a drag has
-         actually started, because by then there is no click to protect.
-
-         This survived a synthetic-event test: setPointerCapture throws for a
-         pointerId that was never a real pointer, so the call fell into the
-         catch and the test exercised a path that does not exist on a device. */
-      wrap.addEventListener('pointerdown', e => {
-        c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        if (c._pts.size === 1) { c._moved = false; c._drag = { x: e.clientX, y: e.clientY }; }
-      });
-
-      /* Called the moment a gesture stops being a tap. Capturing here keeps the
-         drag alive if the finger leaves the map, without costing us the tap. */
-      c._grab = id => {
-        if (c._held) return;
+         the CAPTURING element, so every tap landed on #map-wrap instead of the
+         .region path underneath and UI.clickRegion never ran — the whole board
+         went dead. Capture is taken only once a gesture has committed, when
+         there is no longer a click to protect. */
+      const grab = id => {
+        if (c._held != null) return;
         try { wrap.setPointerCapture(id); c._held = id; } catch (err) {}
       };
-      c._release = () => {
+      const release = () => {
         if (c._held == null) return;
-        try { wrap.releasePointerCapture(c._held); } catch (err) {}
-        c._held = null;
+        const id = c._held;
+        c._held = null;          /* cleared FIRST: releasing fires
+                                    lostpointercapture, and if that re-enters
+                                    here the gesture ends twice */
+        try { wrap.releasePointerCapture(id); } catch (err) {}
       };
+
+      wrap.addEventListener('pointerdown', e => {
+        c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (c._pts.size === 1) {
+          c._rect = null;        /* measure once, at the start of the gesture */
+          c.rect();
+          c._mode = null;
+          c._moved = false;
+          c._anchor = { x: e.clientX, y: e.clientY };
+        } else if (c._pts.size === 2) {
+          /* Seed the baseline the instant the second finger lands, not on the
+             first move after it. A frame late meant whatever distance the
+             fingers covered in that frame was read as an instant jump in zoom. */
+          c._mode = 'pinch';
+          c._moved = true;
+          c.seedPinch();
+          grab(e.pointerId);     /* two fingers is never a tap */
+        }
+      });
 
       wrap.addEventListener('pointermove', e => {
         if (!c._pts.has(e.pointerId)) return;
         c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-        if (c._pts.size >= 2) {
-          const v = [...c._pts.values()];
-          const a = v[0], b = v[1];
-          const dist = Math.hypot(a.x - b.x, a.y - b.y);
-          if (c._pinch && dist > 0) {
-            const f = dist / c._pinch;
-            if (isFinite(f) && f > 0) c.zoomAt(f, (a.x + b.x) / 2, (a.y + b.y) / 2);
+        if (c._mode === 'pinch') {
+          const p = c.pair();
+          if (!p || !c._mid) return;
+          const dist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+          const mid  = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+          if (c._dist > 0 && dist > 0) {
+            /* Two fingers pan as well as zoom. Without this the board is
+               pinned in place while the hand moves, which is most of what
+               "it barely works" feels like. */
+            c.panBy(mid.x - c._mid.x, mid.y - c._mid.y);
+            c.zoomAt(dist / c._dist, mid.x, mid.y);
           }
-          c._pinch = dist;
-          c._moved = true;
-          c._grab(e.pointerId);        /* two fingers is never a tap */
+          c._dist = dist;
+          c._mid  = mid;
           return;
         }
 
-        if (!c._drag) return;
-        const dx = e.clientX - c._drag.x, dy = e.clientY - c._drag.y;
-        /* below the threshold this is a tap, and a tap must still select a
-           territory — a 3px wobble is not a pan */
-        if (!c._moved && Math.hypot(dx, dy) < 8) return;
-        if (!c._moved) c._grab(e.pointerId);   /* now it is a drag, not a tap */
-        c._moved = true;
-        const u = c.unitsPerPx();
-        c.cx -= dx * u; c.cy -= dy * u;
-        c._drag = { x: e.clientX, y: e.clientY };
-        c.apply();
+        if (!c._anchor) return;
+        const dx = e.clientX - c._anchor.x, dy = e.clientY - c._anchor.y;
+        /* under the threshold this is still a tap; a 3px wobble is not a pan */
+        if (c._mode !== 'pan' && Math.hypot(dx, dy) < 8) return;
+        if (c._mode !== 'pan') { c._mode = 'pan'; c._moved = true; grab(e.pointerId); }
+        c.panBy(dx, dy);
+        c._anchor = { x: e.clientX, y: e.clientY };
       });
 
       const end = e => {
-        c._pts.delete(e.pointerId);
-        if (c._pts.size < 2) c._pinch = 0;
+        if (!c._pts.delete(e.pointerId)) return;
+
+        if (c._pts.size === 1) {
+          /* THE LIFT JUMP. The anchor still held the point where the FIRST
+             finger landed, so the surviving finger resumed panning from there
+             and the board leapt across the screen every time a pinch ended.
+             Re-seed to where the remaining finger actually is. */
+          const rest = [...c._pts.values()][0];
+          c._anchor = { x: rest.x, y: rest.y };
+          c._mode = 'pan';
+          c._dist = 0;
+          c._mid = null;
+          return;
+        }
+
         if (c._pts.size === 0) {
-          c._drag = null;
-          c._release();
-          /* Swallow the click a drag produces, or panning across the board
-             selects whatever territory you happened to let go over. */
+          release();
+          c._mode = null;
+          c._anchor = null;
+          c._dist = 0;
+          c._mid = null;
+          c._rect = null;
+          /* Swallow the click a gesture produces, or letting go of a pan over
+             a territory selects it. */
           if (c._moved) { c.swallow = true; setTimeout(() => { c.swallow = false; }, 0); }
           c._moved = false;
         }
       };
       wrap.addEventListener('pointerup', end);
       wrap.addEventListener('pointercancel', end);
-      wrap.addEventListener('lostpointercapture', end);
 
       wrap.addEventListener('wheel', e => {
         e.preventDefault();
-        c.zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX, e.clientY);
+        c._rect = null;
+        /* ctrlKey is how a trackpad pinch arrives, and it wants finer steps */
+        const f = e.ctrlKey ? Math.exp(-e.deltaY * 0.01)
+                            : (e.deltaY < 0 ? 1.12 : 1 / 1.12);
+        c.zoomAt(f, e.clientX, e.clientY);
       }, { passive: false });
 
-      const on = (id, fn) => { const b = $(id); if (b) b.addEventListener('click', e => { e.stopPropagation(); fn(); }); };
+      /* iOS Safari runs its own pinch on the PAGE and touch-action does not
+         stop it, so a two-finger gesture zoomed the document rather than the
+         board — two zooms fighting, which is exactly "borderline does not
+         work". These are the only events that suppress it. */
+      ['gesturestart', 'gesturechange', 'gestureend'].forEach(t =>
+        wrap.addEventListener(t, ev => ev.preventDefault(), { passive: false }));
+      wrap.addEventListener('touchmove', ev => {
+        if (ev.touches && ev.touches.length > 1) ev.preventDefault();
+      }, { passive: false });
+      wrap.addEventListener('dblclick', ev => ev.preventDefault());
+
+      const on = (id, fn) => {
+        const b = $(id);
+        if (b) b.addEventListener('click', ev => { ev.stopPropagation(); fn(); });
+      };
       on('#cam-in',  () => c.step(1.35));
       on('#cam-out', () => c.step(1 / 1.35));
       on('#cam-fit', () => c.reset());
 
-      addEventListener('resize', () => c.apply());
+      addEventListener('resize', () => { c._rect = null; c.paint(); });
     }
   },
 
