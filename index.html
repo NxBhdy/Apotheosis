@@ -136,7 +136,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 
 /* ---------------- top bar ---------------- */
 
-#game { display: grid; grid-template-rows: auto 1fr; height: 100%; }
+/* Three rows now: bar, the 3px Renown rule, board. Stated explicitly — when
+   #xp-strip was added against a two-row template it became an implicit third
+   row sized 1fr, which handed 457px of an 812px phone to a 3px element and
+   left the map with 38% of the screen. */
+#game { display: grid; grid-template-rows: auto auto 1fr; height: 100%; }
 
 #topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
@@ -168,18 +172,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 
 /* ---------------- board ---------------- */
 
-#board { display: grid; grid-template-columns: 1fr 22rem; min-height: 0; }
+/* One column. The 22rem sidebar it used to reserve no longer exists. */
+#board { display: grid; grid-template-columns: 1fr; min-height: 0; }
 /* position: relative so the announcement layer can sit over the board without
    escaping into the sidebar on desktop. */
 #map-pane { display: grid; grid-template-rows: 1fr auto; min-height: 0; min-width: 0; position: relative; }
 #map-wrap { min-height: 0; padding: .6rem; display: grid; place-items: center; }
 #map { width: 100%; height: 100%; max-height: 100%; }
 
-#phase-strip {
-  border-top: 1px solid var(--line); background: var(--surface);
-  padding: .55rem 1rem; display: flex; align-items: center; gap: 1rem;
-  font-size: .88rem; min-height: 3rem;
-}
 .phase-tag {
   font-family: var(--f-mono); font-size: .68rem; letter-spacing: .16em;
   text-transform: uppercase; padding: .22rem .55rem; border: 1px solid var(--bronze-dim);
@@ -246,20 +246,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   font-family: var(--f-mono); font-size: 9.5px; letter-spacing: .18em;
   text-transform: uppercase; fill: rgba(231,228,220,.34); pointer-events: none; text-anchor: middle;
 }
-
-/* ---------------- sidebar ---------------- */
-
-#side {
-  border-left: 1px solid var(--line); background: var(--surface);
-  display: grid; grid-template-rows: auto auto auto auto 1fr; min-height: 0; overflow: hidden;
-}
-.panel { padding: .8rem .9rem; border-bottom: 1px solid var(--line-soft); min-width: 0; }
-.panel h3 {
-  font-family: var(--f-mono); font-size: var(--t-micro); letter-spacing: .18em;
-  text-transform: uppercase; color: var(--ink-dim); margin: 0 0 .65rem;
-  padding-bottom: .35rem; border-bottom: 1px solid var(--line-soft);
-}
-
 .you-head { display: flex; align-items: center; gap: .55rem; margin-bottom: .6rem; }
 .you-head .dot { width: .8rem; height: .8rem; border-radius: 50%; }
 .you-name { font-weight: 700; }
@@ -605,25 +591,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 .region-content .champion-mark,
 .region-content .unrest-mark,
 .region-content .def-flag { pointer-events: auto; }
-
-/* ============================================================
-   PHONE LAYOUT
-
-   Below 900px the side-by-side board/sidebar grid cannot work: at 375px the
-   sidebar sat at x316-586, entirely off the right edge, taking the stats,
-   the action buttons and End Turn with it. The map fills the screen instead
-   and the panels become a bottom sheet.
-   ============================================================ */
-
-/* the grab handle exists only on phones — declared BEFORE the media query so
-   the query wins. Declared after, it silently overrode it on source order and
-   the handle never appeared. */
-#sheet-handle { display: none; }
-
 @media (max-width: 900px) {
   html, body { overflow: hidden; }
-  #sheet-handle { display: flex; }
-
   #board {
     grid-template-columns: 1fr;      /* one column, never two */
     grid-template-rows: 1fr;
@@ -632,47 +601,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 
   #map-pane { grid-row: 1; min-height: 0; }
   #map-wrap { padding: .3rem; }
-
-  /* the sheet: docked to the bottom, slides up when there is something to
-     act on, and never covers more than half the board */
-  #side {
-    position: absolute; left: 0; right: 0; bottom: 0;
-    width: auto; max-height: 58vh;
-    grid-template-rows: auto auto auto auto 1fr;
-    border-left: none;
-    border-top: 1px solid var(--bronze-dim);
-    border-radius: 12px 12px 0 0;
-    box-shadow: 0 -14px 34px rgba(0,0,0,.6);
-    transform: translateY(calc(100% - 3.1rem));
-    transition: transform .22s ease;
-    overflow: hidden;
-    z-index: 20;
-  }
-  #side.open { transform: translateY(0); overflow-y: auto; }
-
-  /* the grab handle is always visible, and is what you tap to open or close */
-  #sheet-handle {
-    display: flex; align-items: center; gap: .6rem;
-    padding: .55rem .9rem; cursor: pointer;
-    background: var(--surface-2); border-bottom: 1px solid var(--line-soft);
-    font-family: var(--f-mono); font-size: var(--t-micro);
-    letter-spacing: .14em; text-transform: uppercase; color: var(--ink-mid);
-    position: sticky; top: 0; z-index: 2;
-  }
-  #sheet-handle .grip {
-    width: 2.2rem; height: .25rem; border-radius: 2px;
-    background: var(--ink-dim); flex: 0 0 auto;
-  }
-  #sheet-handle .lbl { flex: 1; }
-  #sheet-handle .chev { color: var(--bronze); transition: transform .22s; }
-  #side.open #sheet-handle .chev { transform: rotate(180deg); }
-
   /* the map keeps a strip of clear space so the collapsed sheet never sits
      on top of the southern territories */
-  #map-pane { padding-bottom: 3.1rem; }
-
-  #phase-strip { padding: .4rem .6rem; gap: .5rem; font-size: var(--t-small); }
-  #phase-strip .domains { display: none; }   /* legend is desktop-only */
+  #map-pane { padding-bottom: 3.1rem; }   /* legend is desktop-only */
   #hintbar { padding: .4rem .6rem; font-size: var(--t-small); }
 
   #topbar { padding: .4rem .6rem; flex-wrap: wrap; gap: .4rem; }
@@ -743,22 +674,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
     padding: .28rem .4rem; font-size: 0;      /* label hidden, icon remains */
     min-width: 2rem; line-height: 1;
   }
-  .tb-right .ghost::after { font-size: .85rem; }
-  #btn-speed::after { content: '»'; }
-  #btn-help::after  { content: '?'; }
-  #btn-rules::after { content: '☰'; }
-
-  /* The phase strip repeated what the hint bar and the sheet handle already
-     say, for 45px. The hint bar is the more useful of the two. */
-  #phase-strip { display: none; }
-  #hintbar { padding: .35rem .6rem; line-height: 1.35; }
-
-  /* The sheet holds only what you act on. The troop key and the chronicle are
-     reference and history — both still reachable from the ☰ button — and
-     together they were 182px of forced scrolling. */
-  #side #troopkey, #side #log { display: none; }
-  #side { grid-template-rows: auto auto auto auto; max-height: 56vh; }
-
+  .tb-right .ghost::after { font-size: .85rem; }  #hintbar { padding: .35rem .6rem; line-height: 1.35; }
   /* a tighter stat block: this alone was 181px */
   #you { padding: .5rem .7rem; }
   #you .stats { gap: .35rem; margin-bottom: .35rem; }
@@ -767,9 +683,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   #you .you-head { margin-bottom: .3rem; }
   #you .you-patron { display: none; }        /* shown on tap via the tooltip */
   #you .owned { margin-top: .4rem; padding-top: .35rem; }
-  #selection, #actions { padding: .5rem .7rem; }
-  .panel h3 { margin-bottom: .4rem; padding-bottom: .25rem; }
-}
+  #selection, #actions { padding: .5rem .7rem; }}
 
 /* ---- phone: the panel is furniture, not a drawer ----
    It used to slide up on select and down on action, which meant the board was
@@ -778,30 +692,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
    above it at a stable size and never jumps. */
 
 @media (max-width: 900px) {
-  #board { grid-template-rows: 1fr auto; }
-  #map-pane { padding-bottom: 0; }             /* nothing overlaps it now */
-
-  #side {
-    position: static;                           /* back in the grid flow */
-    transform: none;
-    height: 38vh;
-    max-height: 38vh;
-    grid-row: 2;
-    border-radius: 0;
-    box-shadow: 0 -8px 20px rgba(0,0,0,.45);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    grid-template-rows: auto auto auto auto auto auto;
-  }
-
-  /* scrolling is expected here, so the reference material comes back */
-  #side #troopkey, #side #log { display: block; }
-  #side #log { max-height: 9rem; }
-
-  /* the handle is a sticky status line now, not a control */
-  #sheet-handle { cursor: default; }
-  #sheet-handle .grip, #sheet-handle .chev { display: none; }
-
+  #board { grid-template-rows: 1fr; }
+  #map-pane { padding-bottom: 0; }
   /* three numbers per player, colour-coded to the panel's stat tiles */
   .tb-p .n { font-family: var(--f-mono); font-size: .68rem; font-weight: 700; line-height: 1; }
   .tb-p .n.lv { color: var(--ink); }
@@ -939,16 +831,309 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
    chronicle, which put the action buttons 721px down a 309px panel. On a
    phone the order is inverted to match how often you touch each one. */
 
-@media (max-width: 900px) {
-  #side { display: flex; flex-direction: column; }
-  #sheet-handle { order: 0; }
-  #actions      { order: 1; }   /* every turn */
-  #selection    { order: 2; }   /* what you just tapped */
-  #you          { order: 3; }   /* glanceable, already in the top bar */
-  #troopkey     { order: 4; }   /* reference */
-  #log          { order: 5; }   /* history */
-  #side > .panel { flex: 0 0 auto; }
+@media (max-width: 900px) {  #actions      { order: 1; }   /* what you just tapped */
+  #you          { order: 3; }   /* reference */
+  #log          { order: 5; }}
+
+/* ============================================================
+   POPOVER PRIMITIVE
+
+   Five overlays replace the docked panel: the region action popup, the region
+   info bubble, the player menu, the chronicle and the how-to-play sheet. Built
+   ad hoc that is five surfaces that drift apart. This is the one definition
+   all of them consume; only the PRESENTATION differs, via a modifier.
+
+   Elevation is stated here rather than implied. The --surface tokens existed
+   but nothing said what a "raised" thing looks like, so every panel picked its
+   own border and no shadow, which is most of why the interface read as flat.
+
+     level 1  --surface    resting surface, hairline border, no lift
+     level 2  --surface-2  raised: headers, chips, the popover itself
+     level 3  --surface-3  interactive: pressed, focused, hovered
+
+   Motion matches feedback.js exactly — 180ms in, 160ms out, no loop — because
+   that timing is already approved and shipping. Nothing new is introduced, and
+   the global prefers-reduced-motion rule kills all of it.
+   ============================================================ */
+
+:root {
+  --elev-1: 0 1px 0 rgba(0,0,0,.25);
+  --elev-2: 0 6px 18px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.3);
+  --elev-3: 0 18px 44px rgba(0,0,0,.62), 0 0 0 1px rgba(0,0,0,.4);
+  --pv-radius: 12px;
 }
+
+/* ---- the layer: catches the dismiss tap ---- */
+.pv-layer {
+  position: fixed; inset: 0; z-index: 30;
+  background: rgba(8,10,16,.55);
+  backdrop-filter: blur(1.5px);
+  display: flex;
+  animation: pv-fade .18s ease both;
+}
+.pv-layer.is-closing { animation: pv-fade .16s ease reverse both; }
+.pv-layer[hidden] { display: none; }
+
+/* ---- the surface ---- */
+.pv {
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 30%);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--bronze-dim);
+  border-radius: var(--pv-radius);
+  box-shadow: var(--elev-3);
+  display: flex; flex-direction: column;
+  max-height: 82vh; min-width: 0;
+  overflow: hidden;
+}
+
+/* ---- header: what this popover is about ---- */
+.pv-head {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .6rem .8rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line-soft);
+  font-family: var(--f-mono); font-size: var(--t-micro);
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--verdigris);
+  flex: 0 0 auto;
+}
+.pv-head .pv-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-head .pv-sub   { color: var(--ink-dim); }
+.pv-close {
+  flex: 0 0 auto; background: none; border: none; color: var(--ink-mid);
+  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; line-height: 1; cursor: pointer; border-radius: 4px;
+}
+.pv-close:hover { background: var(--surface-3); color: var(--ink); }
+
+.pv-body { overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; padding: .8rem; }
+.pv-body.flush { padding: 0; }
+
+/* ---- presentation A: bottom sheet (the action popup on phone) ---- */
+.pv--sheet { margin-top: auto; width: 100%; border-radius: var(--pv-radius) var(--pv-radius) 0 0; border-bottom: none; }
+.pv-layer:has(.pv--sheet) { align-items: flex-end; }
+.pv--sheet { animation: pv-rise .18s cubic-bezier(.2,.8,.3,1) both; }
+
+/* ---- presentation B: anchored bubble (region info, near the region) ---- */
+.pv--anchor { position: absolute; width: min(17rem, calc(100vw - 1.6rem)); animation: pv-pop .18s cubic-bezier(.2,.8,.3,1) both; }
+.pv--anchor .pv-body { padding: .6rem .7rem; }
+
+/* ---- presentation C: dropdown from the top bar ---- */
+.pv--drop { position: absolute; top: 0; right: .4rem; width: min(22rem, calc(100vw - .8rem)); max-height: 76vh; animation: pv-drop .18s cubic-bezier(.2,.8,.3,1) both; }
+
+/* ---- the action grid: six controls, three across ---- */
+.pv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line-soft); }
+.pv-act {
+  /* Explicit px. The root font is 15px, so rem maths undershoots the 44px
+     minimum silently — 2.85rem computed to 42.75px and shipped. */
+  min-height: 74px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
+  background: var(--surface); border: none; color: var(--ink);
+  font-family: var(--f-body); font-size: var(--t-micro); line-height: 1.15;
+  padding: .5rem .3rem; cursor: pointer; text-align: center;
+  transition: background .12s ease;
+}
+.pv-act:hover  { background: var(--surface-3); }
+.pv-act:active { background: var(--surface-3); }
+.pv-act .icn   { flex: 0 0 auto; }
+.pv-act.is-off { color: var(--ink-dim); cursor: default; }
+.pv-act.is-off:hover { background: var(--surface); }
+.pv-act:focus-visible { outline: 2px solid var(--bronze); outline-offset: -2px; }
+
+/* ---- a labelled reference row: "Income  3 (+2 Holding)" ---- */
+.pv-row { display: flex; align-items: baseline; gap: .6rem; padding: .3rem 0; font-size: var(--t-small); }
+.pv-row + .pv-row { border-top: 1px solid var(--line-soft); }
+.pv-row .k { flex: 0 0 6.2rem; font-family: var(--f-mono); font-size: var(--t-micro);
+             letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); }
+.pv-row .v { flex: 1 1 auto; color: var(--ink); min-width: 0; }
+
+@keyframes pv-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pv-rise { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
+@keyframes pv-pop  { from { opacity: 0; transform: scale(.97) } to { opacity: 1; transform: none } }
+@keyframes pv-drop { from { opacity: 0; transform: translateY(-8px) } to { opacity: 1; transform: none } }
+
+/* On a phone every popover becomes a bottom sheet: an anchored bubble at
+   375px has nowhere to sit that is not on top of the thing it describes. */
+@media (max-width: 900px) {
+  .pv--anchor, .pv--drop {
+    position: static; margin-top: auto; width: 100%;
+    max-height: 62vh; border-radius: var(--pv-radius) var(--pv-radius) 0 0;
+    animation: pv-rise .18s cubic-bezier(.2,.8,.3,1) both;
+  }
+  .pv-layer { align-items: flex-end; }
+}
+
+
+/* ============================================================
+   TOP BAR CHROME — the panel's job, moved up
+
+   The bar is one nowrap row and stays one nowrap row. Everything added here
+   is either inside the existing 33px or below it as a 3px rule.
+   ============================================================ */
+
+/* Renown progress for whoever holds the turn. A rule, not a row: the bar has
+   no height to give, and mid-turn what you read is "how close", not "412/600".
+   The exact number is one tap away inside the player chip. */
+#xp-strip {
+  height: 3px; background: var(--line-soft); flex: 0 0 auto;
+  position: relative; overflow: hidden;
+}
+#xp-fill {
+  display: block; height: 100%; width: 0;
+  background: var(--bronze); transition: width .3s ease;
+}
+
+/* Icon buttons: chronicle and how-to-play. 34px is under the 44px touch
+   minimum on purpose — these are top-bar chrome, not primary controls, and
+   the bar is 33px tall. The tap area is widened below on coarse pointers. */
+.tb-icon {
+  flex: 0 0 auto; background: none; border: none; padding: 0;
+  width: 34px; height: 30px; border-radius: 4px; cursor: pointer;
+  color: var(--ink-mid);
+  display: flex; align-items: center; justify-content: center;
+}
+.tb-icon:hover { background: var(--surface-3); color: var(--ink); }
+.tb-icon:focus-visible { outline: 2px solid var(--bronze); outline-offset: -2px; }
+
+/* The player chips became buttons. Reset the UA styling without disturbing
+   the layout the old divs had. */
+/* The chips became buttons. Reset only what the UA imposes — the border is
+   load-bearing, it is how the acting player is marked, and `border: none`
+   here silently erased that indicator. */
+.tb-p {
+  font: inherit; color: inherit; cursor: pointer;
+  -webkit-appearance: none; appearance: none; text-align: left;
+}
+.tb-p:focus-visible { outline: 2px solid var(--bronze); outline-offset: 1px; }
+
+/* Hint bar doubles as the End Turn control once there is nothing left to
+   spend. End Turn also lives in the region popup; this is the shortcut, so
+   that ending a turn is not gated behind first tapping one of your regions. */
+.hb-end {
+  margin-left: auto; flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: .35rem;
+  min-height: 34px; padding: .2rem .7rem;
+  background: var(--bronze); color: #17120a; border: none; border-radius: 4px;
+  font-family: var(--f-body); font-size: var(--t-small); font-weight: 640;
+  cursor: pointer;
+}
+.hb-end:hover { background: #dba055; }
+.hb-end:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* ---- popover content pieces ---- */
+
+/* the reference half of the region sheet, under the action grid */
+.pv-info { padding: .6rem .8rem .2rem; border-top: 1px solid var(--line-soft); }
+
+.pv-note { font-size: var(--t-small); color: var(--ink-mid); margin: .5rem 0 .2rem; line-height: 1.45; }
+.pv-note.blood { color: #e0a09d; }
+
+.pv-sec {
+  font-family: var(--f-mono); font-size: var(--t-micro); letter-spacing: .16em;
+  text-transform: uppercase; color: var(--ink-dim);
+  margin: 1.1rem 0 .4rem; padding-top: .7rem; border-top: 1px solid var(--line-soft);
+}
+.pv-body > .pv-sec:first-child { margin-top: .2rem; padding-top: 0; border-top: none; }
+
+.pv-foot {
+  display: flex; gap: .6rem; justify-content: flex-end; flex-wrap: wrap;
+  margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid var(--line-soft);
+}
+.pv-foot button { min-height: 44px; padding: .5rem 1.1rem; }
+.pv-foot .primary { flex: 1 1 auto; justify-content: center; }
+.pv-foot.top {
+  margin: 0 0 .6rem; padding: 0 0 .8rem; justify-content: flex-start;
+  border-top: none; border-bottom: 1px solid var(--line-soft);
+}
+.pv-foot.top button { min-height: 40px; }
+
+/* actions-left counter in the region sheet header */
+.pv-budget { font-family: var(--f-mono); color: var(--bronze); }
+.pv-budget.spent { color: var(--blood); }
+
+/* End Turn is the one action in the grid that always works, so it carries the
+   only accent in the set — otherwise six identical tiles give no entry point. */
+.pv-act.is-primary { color: var(--bronze); }
+.pv-act.is-primary:hover { background: var(--surface-3); }
+.pv-act.is-off.is-primary { color: var(--ink-dim); }
+
+/* the popover's own copy of the domain legend, which used to be desktop-only
+   in the phase strip; here it wraps instead of pushing right */
+.pv .domains { margin-left: 0; gap: .5rem .85rem; margin-top: .2rem; }
+
+/* ---- how-to-play: hosts get their silhouette beside the name ---- */
+.ref-item.has-ico {
+  display: grid; grid-template-columns: 22px 1fr; column-gap: .5rem;
+  align-items: start;
+}
+.ref-item.has-ico b, .ref-item.has-ico span { grid-column: 2; }
+.ref-ico { grid-column: 1; grid-row: 1 / span 2; margin-top: .1rem; }
+.ref-only {
+  font-style: normal; font-family: var(--f-mono); font-size: .68rem;
+  color: var(--verdigris); letter-spacing: .06em;
+}
+
+/* A coarse pointer gets a bigger target than a mouse does, without changing
+   the bar's height — the padding grows into the row, not past it. */
+@media (hover: none) {
+  .tb-icon { width: 40px; }
+}
+
+
+/* ============================================================
+   TOUCH TARGETS — measured on the running page, not assumed
+
+   The player chips became buttons when the "you" panel moved inside them, and
+   measured 14.7px tall: they inherited the old div's padding, which never had
+   to be tappable. The bar goes to 44px on a phone and every control in it
+   fills that height. Chrome cost is 4px; the panel that went away was 38vh.
+
+   Stated in px, not rem. The root font is 15px and 2.85rem silently computed
+   to 42.75px last time this was done in rem.
+   ============================================================ */
+
+.pv-close { width: 44px; height: 44px; }
+
+@media (max-width: 900px) {
+  /* No vertical padding: the 44px children set the height. Left as .3rem it
+     stacked on top of them and the bar measured 54px. */
+  #topbar { min-height: 44px; padding: 0 .5rem; }
+
+  /* The visible chip stays small; the BUTTON is 44px tall and centred on it,
+     so the target is full height without the bar looking taller than it is. */
+  .tb-p { min-height: 44px; }
+
+  .tb-icon { width: 44px; height: 44px; }
+
+  /* the hint bar's End Turn shortcut is a primary control */
+  .hb-end { min-height: 44px; }
+}
+
+
+/* ============================================================
+   CAMERA — pinch, drag, wheel
+
+   Custom gestures, so the browser must not claim them: touch-action none on
+   the map only, never on the page.
+   ============================================================ */
+
+#map-wrap { touch-action: none; cursor: grab; }
+#map-wrap:active { cursor: grabbing; }
+
+#cam-ctl {
+  position: absolute; right: .5rem; bottom: .5rem; z-index: 5;
+  display: flex; flex-direction: column; gap: .3rem;
+}
+#cam-ctl button {
+  width: 44px; height: 44px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--line); border-radius: 6px;
+  color: var(--ink-mid); font-family: var(--f-mono); font-size: 1.1rem; line-height: 1;
+  box-shadow: var(--elev-2); cursor: pointer;
+}
+#cam-ctl button:hover { background: var(--surface-3); color: var(--ink); }
+#cam-ctl button[hidden] { display: none; }
 
 </style>
 </head>
@@ -1007,35 +1192,34 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
     </div>
     <div id="tb-players" class="tb-players"></div>
     <div class="tb-right">
-      <button id="btn-speed" class="ghost small">Speed: Normal</button>
-      <button id="btn-help" class="ghost small">How to play</button>
-      <button id="btn-rules" class="ghost small">Reference</button>
+      <button id="btn-chronicle" class="tb-icon" type="button"
+              aria-label="Chronicle — the record of the war"></button>
+      <button id="btn-menu" class="tb-icon" type="button"
+              aria-label="How to play"></button>
     </div>
   </header>
+
+  <!-- Renown progress for whoever holds the turn. A 3px rule rather than a
+       row, because the top bar is one nowrap line and has no height to give. -->
+  <div id="xp-strip"><span id="xp-fill"></span></div>
 
   <main id="board">
     <section id="map-pane">
       <div id="map-wrap"><svg id="map" viewBox="0 0 1340 960" preserveAspectRatio="xMidYMid meet"></svg></div>
-      <div id="phase-strip"></div>
+      <div id="cam-ctl">
+        <button id="cam-in"  type="button" aria-label="Zoom in">+</button>
+        <button id="cam-out" type="button" aria-label="Zoom out">−</button>
+        <button id="cam-fit" type="button" aria-label="Fit the whole board" hidden>□</button>
+      </div>
       <div id="hintbar"></div>
     </section>
-
-    <aside id="side">
-      <div id="sheet-handle">
-        <span class="grip"></span>
-        <span class="lbl">Your turn</span>
-        <span class="chev">▲</span>
-      </div>
-      <div id="you" class="panel"></div>
-      <div id="selection" class="panel"></div>
-      <div id="actions" class="panel"></div>
-      <div id="troopkey" class="panel"></div>
-      <div id="log" class="panel log"></div>
-    </aside>
   </main>
 </div>
 
 <!-- ============ overlays ============ -->
+<!-- One layer, five popovers. The surface is defined once in style.css as
+     .pv and only its presentation modifier changes. -->
+<div id="pv-layer" class="pv-layer" hidden></div>
 <div id="modal-layer" class="hidden"><div id="modal"></div></div>
 <div id="pass-layer" class="hidden"><div id="pass-card"></div></div>
 
@@ -4183,7 +4367,7 @@ const MapView = {
 
     svg.innerHTML = out;
     svg.querySelectorAll('.region, .region-content').forEach(el => {
-      el.addEventListener('click', () => UI.clickRegion(el.dataset.region));
+      el.addEventListener('click', e => UI.clickRegion(el.dataset.region, e));
     });
   },
 
@@ -4192,6 +4376,91 @@ const MapView = {
       ${MapView.troopShape(unitId, colour || '#c98f47')}</svg>`;
   },
 };
+
+;
+/* ===== js/icons.js ===== */
+/* ============================================================
+   APOTHEOSIS — UI icon set
+
+   The single source of truth for every interface mark. The board's troop and
+   terrain symbols live in render-map.js; these are the controls.
+
+   Chosen by rendering candidate systems at 44 / 32 / 24px, in the enabled AND
+   refused states, on the real --surface-2, and LOOKING at them
+   (`node tools/icon-lab.js`, then `node tools/icon-final.js`). Winners were
+   taken per icon, not per system:
+
+     march      C · Seal      double chevron — reads as movement at 24px
+     raise      A · Heraldic  up-arrow on a base bar
+     build      C · Seal      battlements — echoes holdingShape() tier 1
+     monument   A · Heraldic  obelisk on a plinth
+     hold       A · Heraldic  shield
+     endturn    C · Seal      checkmark, ck2 of four weights
+     chronicle  A · Heraldic  open book
+     menu       B · Engraved  three rules — the one stroke icon in the set
+
+   Authored in a -12..12 box: an icon drops into a 24px button with no
+   rescaling. An entry is either a plain string (filled) or {d, stroke:true}.
+
+   NOTE FOR SHIPPING: this file is listed in BOTH index.html and the SCRIPTS
+   array in tools/bundle.js. Miss the second and the bundle throws
+   `Icons is not defined` on load — a blank page, exactly the class of failure
+   rule 1c is about.
+   ============================================================ */
+
+const Icons = {
+
+  PATHS: {
+    march:    '<path d="M-7.4,-6.4 L-1.2,0 L-7.4,6.4 L-9.4,4.4 L-5.2,0 L-9.4,-4.4 Z"/>'
+            + '<path d="M1.4,-6.4 L7.6,0 L1.4,6.4 L-0.6,4.4 L3.6,0 L-0.6,-4.4 Z"/>',
+
+    raise:    '<path d="M0,-9.6 L5.4,-2.8 H2.1 V6.4 H-2.1 V-2.8 H-5.4 Z"/>'
+            + '<rect x="-7.6" y="7.8" width="15.2" height="2.6"/>',
+
+    build:    '<rect x="-8.4" y="-2.2" width="16.8" height="11.2"/>'
+            + '<rect x="-8.4" y="-6.4" width="4.2" height="4.4"/>'
+            + '<rect x="-2.1" y="-6.4" width="4.2" height="4.4"/>'
+            + '<rect x="4.2" y="-6.4" width="4.2" height="4.4"/>',
+
+    monument: '<path d="M0,-10.4 L3.2,-3.8 V5.6 H-3.2 V-3.8 Z"/>'
+            + '<rect x="-6.4" y="6.6" width="12.8" height="3"/>',
+
+    hold:     '<path d="M0,-9.4 L8.2,-6.2 V1 Q8.2,7.2 0,10.2 Q-8.2,7.2 -8.2,1 V-6.2 Z"/>',
+
+    endturn:  '<path d="M-7.8,-1.2 L-2.8,3.8 L7.4,-6.6 L9.6,-4.4 L-2.8,8.2 L-10,1 Z"/>',
+
+    chronicle:'<path d="M-9,-6.4 Q-4.6,-8.6 -0.5,-6.4 V6.6 Q-4.6,4.4 -9,6.6 Z"/>'
+            + '<path d="M9,-6.4 Q4.6,-8.6 0.5,-6.4 V6.6 Q4.6,4.4 9,6.6 Z"/>',
+
+    menu:     { stroke: true,
+                d: '<path d="M-8.4,-5 H8.4"/><path d="M-8.4,0 H8.4"/><path d="M-8.4,5 H8.4"/>' }
+  },
+
+
+  /* Renders one icon. `colour` is passed explicitly rather than inherited so a
+     refused control can be dimmed without touching the button's text colour.
+     Stroke icons get their width scaled to the box, not the output size, so a
+     44px and a 24px hamburger carry the same visual weight. */
+  svg(id, px, colour, extra) {
+    const e = Icons.PATHS[id];
+    if (!e) return '';
+    const c = colour || 'currentColor';
+    const paint = (typeof e === 'object' && e.stroke)
+      ? 'fill="none" stroke="' + c + '" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"'
+      : 'fill="' + c + '"';
+    const d = typeof e === 'object' ? e.d : e;
+    return '<svg class="icn' + (extra ? ' ' + extra : '') + '" width="' + px + '" height="' + px
+         + '" viewBox="-12 -12 24 24" aria-hidden="true" focusable="false">'
+         + '<g ' + paint + '>' + d + '</g></svg>';
+  },
+
+  /* currentColor form, for anywhere CSS should own the colour. */
+  inline(id, px) { return Icons.svg(id, px, 'currentColor'); },
+
+  has(id) { return !!Icons.PATHS[id]; }
+};
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { Icons };
 
 ;
 /* ===== js/ui.js ===== */
@@ -4259,35 +4528,102 @@ function mix(hex, withHex, amount) {
 const UI = {
   mode: 'idle',          // 'idle' | 'march'
 
-  /* ---------------- phone bottom sheet ----------------
-     On a narrow screen the side panel docks to the bottom and only its handle
-     shows. Selecting a territory slides it up, because that is the moment you
-     need the actions; committing an action or ending the turn drops it again
-     so the board is never obscured while you are reading it. */
-
   phone() { return matchMedia('(max-width: 900px)').matches; },
 
-  sheet() { /* retained so existing call sites stay valid; panel is always visible */ },
+  /* ---------------- popover ----------------
 
-  /* The panel used to slide up and down. It is now permanently docked and
-     scrolls internally, so the handle is a sticky status line rather than a
-     control — nothing to open, nothing to remember to close. */
-  initSheet() {},
+     The docked panel is gone. Five surfaces replace it — the region popup, the
+     player menu, the chronicle, the how-to-play sheet — and every one of them
+     is this one controller with a different presentation modifier.
 
-  /* the handle doubles as a status line, so a collapsed sheet still tells you
-     whose turn it is and how many actions are left */
-  renderSheetLabel() {
-    const h = $('#sheet-handle');
-    if (!h) return;
-    const p = UI.acting();
-    const lbl = h.querySelector('.lbl');
-    if (!lbl || !p) return;
-    if (G.phase === 'gameover') { lbl.textContent = 'Game over'; return; }
-    const left = Rules.actionsLeft(p.index);
-    lbl.innerHTML = `<b style="color:${p.colour.hex}">${esc(p.name)}</b>`
-      + (G.phase === 'reaction' ? ' · reaction'
-         : ` · ${left} action${left === 1 ? '' : 's'}`)
-      + ` · ${p.tribute}t`;
+     Rule 1f is the shape of this thing: it BUILDS ONCE per open and is never
+     re-rendered underneath a finger. UI.render() deliberately does not touch
+     an open popover. A control that commits state closes first and re-opens
+     from fresh data if it needs to, and carries a `committed` latch so a
+     double-fire cannot spend two actions.
+
+     Layer-level listeners are bound exactly once (`_wired`). Re-binding them
+     per open silently stacks handlers, and the second copy is what closes the
+     popover the instant the first one opens it. */
+  pv: {
+    kind: null,
+    ctx: null,
+    _wired: false,
+
+    layer()  { return $('#pv-layer'); },
+    isOpen() { return UI.pv.kind !== null; },
+
+    wire() {
+      const layer = UI.pv.layer();
+      if (!layer || UI.pv._wired) return;
+      UI.pv._wired = true;
+      /* backdrop tap closes; a tap inside must not */
+      layer.addEventListener('click', e => { if (e.target === layer) UI.pv.close(); });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && UI.pv.isOpen()) UI.pv.close();
+      });
+    },
+
+    /* opts: {kind, title, sub, body, variant, flush, ctx, at, wire} */
+    open(opts) {
+      const layer = UI.pv.layer();
+      if (!layer) return;
+      UI.pv.wire();
+      UI.pv.kind = opts.kind;
+      UI.pv.ctx  = 'ctx' in opts ? opts.ctx : null;
+
+      const variant = opts.variant || 'sheet';
+      layer.innerHTML =
+        `<div class="pv pv--${variant}" role="dialog" aria-modal="true"
+              aria-label="${esc(opts.aria || opts.titleText || opts.kind)}">
+           <div class="pv-head">
+             <span class="pv-title">${opts.title || ''}</span>
+             ${opts.sub ? `<span class="pv-sub">${opts.sub}</span>` : ''}
+             <button class="pv-close" type="button" aria-label="Close">&times;</button>
+           </div>
+           <div class="pv-body${opts.flush ? ' flush' : ''}">${opts.body || ''}</div>
+         </div>`;
+      layer.hidden = false;
+
+      const card = layer.querySelector('.pv');
+      card.querySelector('.pv-close').addEventListener('click', UI.pv.close);
+
+      /* An anchored bubble is desktop-only; the phone media query flattens
+         .pv--anchor back to a sheet, so skip the maths entirely there. */
+      if (variant === 'anchor' && opts.at && !UI.phone()) {
+        const w = card.offsetWidth || 272, h = card.offsetHeight || 200;
+        const pad = 10;
+        const x = Math.max(pad, Math.min(opts.at.x - w / 2, window.innerWidth  - w - pad));
+        const y = Math.max(pad, Math.min(opts.at.y + 14,    window.innerHeight - h - pad));
+        card.style.left = x + 'px';
+        card.style.top  = y + 'px';
+      }
+
+      if (opts.wire) opts.wire(card);
+      const first = card.querySelector('.pv-act:not(.is-off), button:not(.pv-close)');
+      if (first && !UI.phone()) first.focus();
+    },
+
+    close() {
+      const layer = UI.pv.layer();
+      UI.pv.kind = null;
+      UI.pv.ctx  = null;
+      if (!layer) return;
+      layer.hidden = true;
+      layer.innerHTML = '';
+    },
+
+    /* Close, then run. Used by every control that changes game state: the
+       popover it lives in describes a board that is about to be stale. */
+    commit(fn) {
+      let done = false;
+      return () => {
+        if (done) return;
+        done = true;
+        UI.pv.close();
+        fn();
+      };
+    }
   },
 
   /* the board is drawn by MapView (js/render-map.js); these keep the old
@@ -4320,15 +4656,12 @@ const UI = {
     if (UI._pending) { cancelAnimationFrame(UI._pending); UI._pending = 0; }
     UI.renderTop();
     UI.renderMap();
-    UI.renderYou();
-    UI.renderSelection();
-    UI.renderActions();
-    UI.renderKey();
-    UI.renderLog();
-    UI.renderPhaseStrip();
+    UI.cam.wire();
+    UI.cam.apply();
     UI.renderHint();
-    UI.initSheet();
-    UI.renderSheetLabel();
+    /* An open popover is NOT rebuilt here. It was built from a snapshot and is
+       torn down by whatever commits against it — repainting it under a finger
+       is rule 1f, and it is how the raise dialog once spent two actions. */
     UI.checkOverlays();
     /* Last: checkOverlays may have opened a dialog, and announcements wait
        behind one rather than expiring under the scrim. */
@@ -4355,38 +4688,250 @@ const UI = {
       ? `R${G.round}/${ROUND_LIMIT}`
       : `Round ${G.round} of ${ROUND_LIMIT} · Turn ${G.turnIndex + 1}`;
 
+    /* Chips are buttons now: everything the old "you" panel carried — patron,
+       Boons, Perks, Domain progress, Surrender — lives one tap inside your own
+       chip, and a rival's chip shows the public half of the same thing. */
     $('#tb-players').innerHTML = G.players.map((p, i) => {
       const cls = ['tb-p'];
       if (i === UI.actingIndex() && G.phase !== 'gameover') cls.push('active');
       if (p.surrendered) cls.push('out');
       const s = Rules.scoreFor(i);
+      const who = `${esc(p.name)}${AI.isAI(i) ? ' — ' + esc(AI.personality(i).name) : ''}`;
+      const aria = `${p.name}: Renown ${p.level}, ${p.tribute} Tribute, ${s.total} victory points`;
 
       if (compact) {
-        /* Renown, Tribute and score, colour-matched to the stat tiles in the
-           panel so they read without labels — labels are what made this bar
-           four rows tall. Tap for the same numbers spelled out. */
-        const tip = `<b>${esc(p.name)}</b>${AI.isAI(i) ? ' — ' + esc(AI.personality(i).name) : ''}`
-          + `<br>Renown ${p.level} · ${p.tribute} Tribute · ${s.total} VP`;
-        return `<div class="${cls.join(' ')}" data-tip="${tip}">
+        return `<button class="${cls.join(' ')}" type="button" data-i="${i}" aria-label="${esc(aria)}">
           <span class="dot" style="background:${p.colour.hex}"></span>
           <span class="n lv">${p.level}</span>
           <span class="n tr">${p.tribute}</span>
           <span class="n vp">${s.total}</span>
-        </div>`;
+        </button>`;
       }
 
       const tag = AI.isAI(i)
-        ? `<span class="ai-tag" title="${esc(AI.personality(i).blurb)}">${esc(AI.personality(i).name)}</span>`
+        ? `<span class="ai-tag">${esc(AI.personality(i).name)}</span>`
         : '';
-      return `<div class="${cls.join(' ')}">
+      return `<button class="${cls.join(' ')}" type="button" data-i="${i}" aria-label="${esc(aria)}">
         <span class="dot" style="background:${p.colour.hex}"></span>
         <span>${esc(p.name)}</span>${tag}
         <span class="st">L${p.level} · ${p.tribute}t · ${s.total}vp</span>
-      </div>`;
+      </button>`;
     }).join('');
+
+    /* Renown progress for whoever holds the turn, as a 3px rule under the bar.
+       The old panel spelled out "412 / 600 XP"; the exact number is in the
+       player menu, and what you actually read mid-turn is "how close am I". */
+    const a = UI.acting();
+    const fill = $('#xp-fill');
+    if (fill && a) {
+      const next = a.level < MAX_LEVEL ? XP_THRESHOLDS[a.level] : null;
+      const prev = XP_THRESHOLDS[a.level - 1];
+      const pct = next ? Math.max(0, Math.min(100, ((a.xp - prev) / (next - prev)) * 100)) : 100;
+      fill.style.width = pct + '%';
+      fill.style.background = a.colour.hex;
+      $('#xp-strip').setAttribute('title',
+        next ? `${a.name}: ${a.xp} of ${next} XP to Renown ${a.level + 1}`
+             : `${a.name} has reached Apotheosis`);
+    }
+
+    UI.wireChrome();
   },
 
+  /* Bound once. renderTop rewrites the chip markup every frame, so chip taps
+     go through delegation on the container, which survives the rewrite. */
+  wireChrome() {
+    if (UI._chromeWired) return;
+    UI._chromeWired = true;
+
+    const chron = $('#btn-chronicle'), menu = $('#btn-menu');
+    if (chron) {
+      chron.innerHTML = Icons.svg('chronicle', 20, 'currentColor');
+      chron.addEventListener('click', () => UI.openChronicle());
+    }
+    if (menu) {
+      menu.innerHTML = Icons.svg('menu', 20, 'currentColor');
+      menu.addEventListener('click', () => UI.openMenu());
+    }
+    const box = $('#tb-players');
+    if (box) box.addEventListener('click', e => {
+      const chip = e.target.closest('.tb-p');
+      if (chip && chip.dataset.i !== undefined) UI.openPlayer(+chip.dataset.i);
+    });
+  },
+  _chromeWired: false,
+
   /* ================= map ================= */
+
+  /* ================= camera ================= */
+
+  /* The board is 1340x960 — 1.40:1. A portrait phone pane is about 0.51:1, so
+     fitting the whole board to width drew it at 366x262 and left 502px of the
+     screen empty. Deleting the docked panel bought real estate the board could
+     not spend. This makes it spendable: pinch or wheel to zoom, drag to pan.
+
+     A viewBox window, not a transform on a wrapper <g>: renderMap() replaces
+     svg.innerHTML on every repaint and would throw a wrapper away. The
+     attribute survives, so the camera is untouched by a redraw. */
+  cam: {
+    k: 1, cx: MAP_W / 2, cy: MAP_H / 2,
+    MIN: 1, MAX: 5,
+    swallow: false,
+    _wired: false, _drag: null, _pinch: 0, _moved: false, _held: null,
+    _pts: new Map(),
+
+    /* the zoom at which the board exactly fills the pane's height */
+    fillK() {
+      const svg = $('#map'); if (!svg) return 2.7;
+      const r = svg.getBoundingClientRect();
+      if (!r.width || !r.height) return 2.7;
+      const A = r.width / r.height;
+      return Math.max(MAP_W, MAP_H * A) / (MAP_H * A);
+    },
+
+    apply() {
+      const svg = $('#map'); if (!svg) return;
+      const r = svg.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const A = r.width / r.height;
+      const c = UI.cam;
+      c.k = Math.max(c.MIN, Math.min(c.MAX, c.k));
+      /* at k = 1 the window is whatever contains the whole board at this
+         aspect, so "zoomed all the way out" always means "I can see it all" */
+      const w = Math.max(MAP_W, MAP_H * A) / c.k;
+      const h = w / A;
+      c.cx = w >= MAP_W ? MAP_W / 2 : Math.max(w / 2, Math.min(MAP_W - w / 2, c.cx));
+      c.cy = h >= MAP_H ? MAP_H / 2 : Math.max(h / 2, Math.min(MAP_H - h / 2, c.cy));
+      svg.setAttribute('viewBox',
+        (c.cx - w / 2).toFixed(1) + ' ' + (c.cy - h / 2).toFixed(1) + ' '
+        + w.toFixed(1) + ' ' + h.toFixed(1));
+      const fit = $('#cam-fit');
+      if (fit) fit.hidden = c.k <= c.MIN + 0.01;
+    },
+
+    /* map units per CSS pixel, for turning a drag into a pan */
+    unitsPerPx() {
+      const svg = $('#map');
+      const r = svg.getBoundingClientRect();
+      return svg.viewBox.baseVal.width / r.width;
+    },
+
+    /* zoom about a screen point, holding the map coordinate under it fixed */
+    zoomAt(factor, clientX, clientY) {
+      const svg = $('#map'); if (!svg) return;
+      const r = svg.getBoundingClientRect();
+      const vb = svg.viewBox.baseVal;
+      const mx = vb.x + ((clientX - r.left) / r.width) * vb.width;
+      const my = vb.y + ((clientY - r.top) / r.height) * vb.height;
+      const c = UI.cam;
+      const k0 = c.k;
+      c.k = Math.max(c.MIN, Math.min(c.MAX, c.k * factor));
+      const s = c.k / k0;
+      if (s === 1) return;
+      c.cx = mx + (c.cx - mx) / s;
+      c.cy = my + (c.cy - my) / s;
+      c.apply();
+    },
+
+    reset() { const c = UI.cam; c.k = 1; c.cx = MAP_W / 2; c.cy = MAP_H / 2; c.apply(); },
+    step(f) {
+      const svg = $('#map'); const r = svg.getBoundingClientRect();
+      UI.cam.zoomAt(f, r.left + r.width / 2, r.top + r.height / 2);
+    },
+
+    wire() {
+      const wrap = $('#map-wrap');
+      if (!wrap || UI.cam._wired) return;
+      UI.cam._wired = true;
+      const c = UI.cam;
+
+      /* DO NOT capture the pointer here.
+
+         A captured pointer retargets the click the browser sends on release to
+         the CAPTURING element, so every tap landed on #map-wrap instead of on
+         the .region path underneath it and UI.clickRegion was never called —
+         the whole board went dead. Capture is taken below, only once a drag has
+         actually started, because by then there is no click to protect.
+
+         This survived a synthetic-event test: setPointerCapture throws for a
+         pointerId that was never a real pointer, so the call fell into the
+         catch and the test exercised a path that does not exist on a device. */
+      wrap.addEventListener('pointerdown', e => {
+        c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (c._pts.size === 1) { c._moved = false; c._drag = { x: e.clientX, y: e.clientY }; }
+      });
+
+      /* Called the moment a gesture stops being a tap. Capturing here keeps the
+         drag alive if the finger leaves the map, without costing us the tap. */
+      c._grab = id => {
+        if (c._held) return;
+        try { wrap.setPointerCapture(id); c._held = id; } catch (err) {}
+      };
+      c._release = () => {
+        if (c._held == null) return;
+        try { wrap.releasePointerCapture(c._held); } catch (err) {}
+        c._held = null;
+      };
+
+      wrap.addEventListener('pointermove', e => {
+        if (!c._pts.has(e.pointerId)) return;
+        c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (c._pts.size >= 2) {
+          const v = [...c._pts.values()];
+          const a = v[0], b = v[1];
+          const dist = Math.hypot(a.x - b.x, a.y - b.y);
+          if (c._pinch && dist > 0) {
+            const f = dist / c._pinch;
+            if (isFinite(f) && f > 0) c.zoomAt(f, (a.x + b.x) / 2, (a.y + b.y) / 2);
+          }
+          c._pinch = dist;
+          c._moved = true;
+          c._grab(e.pointerId);        /* two fingers is never a tap */
+          return;
+        }
+
+        if (!c._drag) return;
+        const dx = e.clientX - c._drag.x, dy = e.clientY - c._drag.y;
+        /* below the threshold this is a tap, and a tap must still select a
+           territory — a 3px wobble is not a pan */
+        if (!c._moved && Math.hypot(dx, dy) < 8) return;
+        if (!c._moved) c._grab(e.pointerId);   /* now it is a drag, not a tap */
+        c._moved = true;
+        const u = c.unitsPerPx();
+        c.cx -= dx * u; c.cy -= dy * u;
+        c._drag = { x: e.clientX, y: e.clientY };
+        c.apply();
+      });
+
+      const end = e => {
+        c._pts.delete(e.pointerId);
+        if (c._pts.size < 2) c._pinch = 0;
+        if (c._pts.size === 0) {
+          c._drag = null;
+          c._release();
+          /* Swallow the click a drag produces, or panning across the board
+             selects whatever territory you happened to let go over. */
+          if (c._moved) { c.swallow = true; setTimeout(() => { c.swallow = false; }, 0); }
+          c._moved = false;
+        }
+      };
+      wrap.addEventListener('pointerup', end);
+      wrap.addEventListener('pointercancel', end);
+      wrap.addEventListener('lostpointercapture', end);
+
+      wrap.addEventListener('wheel', e => {
+        e.preventDefault();
+        c.zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX, e.clientY);
+      }, { passive: false });
+
+      const on = (id, fn) => { const b = $(id); if (b) b.addEventListener('click', e => { e.stopPropagation(); fn(); }); };
+      on('#cam-in',  () => c.step(1.35));
+      on('#cam-out', () => c.step(1 / 1.35));
+      on('#cam-fit', () => c.reset());
+
+      addEventListener('resize', () => c.apply());
+    }
+  },
 
   marchTargets(from) {
     const pi = UI.actingIndex();
@@ -4407,7 +4952,8 @@ const UI = {
     return out;
   },
 
-  clickRegion(id) {
+  clickRegion(id, ev) {
+    if (UI.cam.swallow) return;          /* this click is the tail of a pan */
     if (G.phase === 'gameover' || G.pendingBoon) return;
     /* A finished battle nobody is showing must never block the board. If we
        reach here with one pending, clear it rather than swallowing the click. */
@@ -4425,186 +4971,217 @@ const UI = {
     UI.mode = 'idle';
     G.selected = (G.selected === id) ? null : id;
     UI.render();
-    UI.sheet(!!G.selected);
+    if (G.selected) UI.openRegion(G.selected, ev ? { x: ev.clientX, y: ev.clientY } : null);
+    else UI.pv.close();
   },
 
-  /* ================= sidebar ================= */
+  /* ================= popover content ================= */
 
-  renderYou() {
-    const p = UI.acting();
-    const patron = Rules.patronOf(p);
-    const nextXP = p.level < MAX_LEVEL ? XP_THRESHOLDS[p.level] : null;
-    const prevXP = XP_THRESHOLDS[p.level - 1];
-    const pct = nextXP ? Math.min(100, ((p.xp - prevXP) / (nextXP - prevXP)) * 100) : 100;
-    const s = Rules.scoreFor(p.index);
-
-    /* Deltas are keyed by seat as well as stat, so glancing at another
-       warlord's panel never reports their treasury as your gain. */
-    const dTribute = UI.fx.delta(`t${p.index}`, p.tribute);
-    const dLevel   = UI.fx.delta(`l${p.index}`, p.level);
-    const dScore   = UI.fx.delta(`s${p.index}`, s.total);
-
-    $('#you').innerHTML = `
-      <div class="you-head">
-        <span class="dot" style="background:${p.colour.hex}"></span>
-        <span class="you-name">${esc(p.name)}</span>
-        ${p.fallen ? '<span class="boon-chip" style="border-color:var(--blood);color:#e0a09d">Fallen</span>' : ''}
-      </div>
-      <div class="you-patron">${esc(patron.name)} ${esc(patron.epithet)} — ${esc(patron.passive)}</div>
-      <div class="stats" style="margin-top:.6rem">
-        <div class="stat tip-left" data-tip="Your money. Full territorial income arrives at the start of your own Turn — ${Rules.incomeFor(p.index)} this Round, minus ${Rules.upkeepFor(p.index)} upkeep. Each Reaction pays a flat +${REACTION_TRICKLE}. Spend it on hosts and Holdings; it never caps.">
-          <div class="k">Tribute</div>
-          <div class="v">${p.tribute}${dTribute}<small> +${Rules.incomeFor(p.index) - Rules.upkeepFor(p.index)}/rd</small></div></div>
-        <div class="stat" data-tip="Your level. XP comes from taking ground (+${XP_AWARDS.captureFoe}), raising Holdings (+${XP_AWARDS.holding[0]}–${XP_AWARDS.holding[2]}), completing a Domain (+${XP_AWARDS.domain}), holding a Shrine (+${XP_AWARDS.shrineTurn}/Turn), taking a Throne (+${XP_AWARDS.throne}), and battle — ${XP_AWARDS.hostDestroyed} per kill AND ${XP_AWARDS.hostLost} per host you lose, so losing still levels you.">
-          <div class="k">Renown</div><div class="v">${p.level}${dLevel}<small> ${esc(tierFor(p.level))}</small></div></div>
-        <div class="stat tip-right" data-tip="Victory points, scored at the Round limit. Complete Domain ${VP.domain} each · Holding ${VP.holding} each · Renown level ${VP.renownLevel} each · rival Throne held ${VP.rivalThrone} each.">
-          <div class="k">Score</div><div class="v">${s.total}${dScore}<small> vp</small></div></div>
-      </div>
-      <div class="xpbar" data-tip="Progress to Renown ${Math.min(MAX_LEVEL, p.level + 1)}. Every level offers a choice of three Boons from your patron."><span style="width:${pct}%"></span></div>
-      <div style="font-size:.74rem;color:var(--ink-dim);font-family:var(--f-mono)">
-        ${nextXP ? `${p.xp} / ${nextXP} XP` : 'Apotheosis reached'}
-      </div>
-      ${(p.boons.length || p.perks.length) ? `
-        <div class="owned">
-          <div class="owned-h">Claimed this match — hover for what each one does</div>
-          <div class="boonlist">
-            ${p.boons.map(b => {
-              const bd = patron.boons.find(x => x.id === b);
-              return bd ? `<span class="boon-chip" data-tip="<b>${esc(bd.name)}</b><br>${esc(bd.text)}">${esc(bd.name)}</span>` : '';
-            }).join('')}
-            ${p.perks.map(k => {
-              const pk = CHAMPION_PERKS.find(x => x.id === k);
-              return pk ? `<span class="boon-chip perk" data-tip="<b>${esc(pk.name)}</b> — Champion Perk<br>${esc(pk.text)}">${esc(pk.name)}</span>` : '';
-            }).join('')}
-          </div>
-        </div>` : ''}
-    `;
-  },
-
-  renderSelection() {
-    const el = $('#selection');
-    const id = G.selected;
-    if (!id) { el.innerHTML = `<h3>Region</h3><p class="sel-note">Select a territory on the map.</p>`; return; }
-    const def = REGIONS[id], rs = G.regions[id], t = REGION_TYPES[def.type];
-    const owner = rs.owner === null ? 'Unclaimed' : G.players[rs.owner].name;
-    const ownerCol = rs.owner === null ? 'var(--ink-dim)' : G.players[rs.owner].colour.hex;
-
-    const hosts = Object.keys(rs.hosts).filter(u => rs.hosts[u] > 0);
-    el.innerHTML = `
-      <h3>Region</h3>
-      <p class="sel-title">${esc(def.name)}</p>
-      <p class="sel-sub">
-        ${esc(t.name)} · ${esc(DOMAINS[def.domain].name)} ·
-        <span style="color:${ownerCol}">${esc(owner)}</span>
-      </p>
-      <div style="font-size:.8rem;color:var(--ink-mid)">
-        Income ${t.income}${rs.holding ? ` +${HOLDING_INCOME[rs.holding - 1]}` : ''} ·
-        ${rs.holding ? `Holding tier ${rs.holding}${rs.holding >= 2 ? ' · +1 defence die' : ''}` : 'No Holding'}
-      </div>
-      ${rs.unrest > 0 ? `<p class="sel-note" style="color:var(--blood)">
-        Restive — newly conquered. Pays no Tribute and cannot be developed until you hold it through a Turn.</p>` : ''}
-      <p class="sel-note">${esc(t.note)}</p>
-      <div class="raise-here"><span class="rh-k">Raises here</span>
-        <span class="rh-v">${esc(UI.raisableAt(id).join(', ') || 'nothing on-type — off-type costs double')}</span></div>
-      ${Rules.hostCount(rs) ? `<div class="raise-here"><span class="rh-k">Defends with</span>
-        <span class="rh-v">${UI.defenceRating(id).dice} dice${UI.defenceRating(id).notes.length ? ' — ' + esc(UI.defenceRating(id).notes.join(', ')) : ''}</span></div>` : ''}
-      ${rs.owner === UI.actingIndex() ? UI.buildPreview(UI.actingIndex(), id) : ''}
-      ${hosts.length ? `<div class="hostlist">` + hosts.map(u =>
-        `<div class="hostrow"><span>${esc(UNITS[u].name)}</span><span class="n">${rs.hosts[u]}</span></div>`
-      ).join('') + `</div>` : `<p class="sel-note">No hosts here.</p>`}
-    `;
-  },
-
-  renderActions() {
-    const el = $('#actions');
-    if (G.phase === 'gameover') { el.innerHTML = `<h3>Actions</h3><p class="sel-note">The war is over.</p>`; return; }
-
+  /* Every action with the sentence explaining why it cannot run. This is the
+     old renderActions() gating, unchanged — only where it is drawn moved. The
+     reasons matter more than they did: a phone has no hover, so the `title`
+     that used to carry them was invisible on the primary target. */
+  actionModel(id) {
     const pi = UI.actingIndex();
-    const p = G.players[pi];
-    const id = G.selected;
-    const mine = id && G.regions[id].owner === pi;
+    const rs = G.regions[id];
+    const mine = rs.owner === pi;
     const isReaction = G.phase === 'reaction';
     const canAct = isReaction ? !G.reactionActionTaken : Rules.actionsLeft(pi) > 0;
-
-    const canMarch = mine && Rules.hostCount(G.regions[id]) > 1 && canAct;
     const build = mine ? Rules.canBuild(pi, id) : { ok: false };
-    const surr = Rules.canSurrender(pi);
     const mon = Rules.canMonument(pi);
 
-    const left = isReaction ? (G.reactionActionTaken ? 0 : 1) : Rules.actionsLeft(pi);
-    const budgetTag = `<span style="float:right;color:${left ? 'var(--bronze)' : 'var(--blood)'}"
-        title="Renown buys more actions each Turn">${left} action${left === 1 ? '' : 's'} left</span>`;
-
-    /* Every refusal now has a sentence attached to it. A phone has no hover,
-       so the `title` that used to carry these was invisible on the primary
-       target — you got a greyed button and no explanation anywhere. */
     const noActions = isReaction
       ? 'Your Reaction is spent. End it and play passes on.'
       : 'No actions left this Turn. End your Turn to collect Tribute and start again.';
 
-    const whyMarch = !id ? 'Select one of your regions first, then march from it.'
-      : !mine ? `${REGIONS[id].name} is not yours to march from.`
-      : Rules.hostCount(G.regions[id]) <= 1 ? `${REGIONS[id].name} holds a single host and must keep it — no region is ever left empty.`
+    const whyMarch = !mine ? REGIONS[id].name + ' is not yours to march from.'
+      : Rules.hostCount(rs) <= 1
+        ? REGIONS[id].name + ' holds a single host and must keep it — no region is ever left empty.'
       : !canAct ? noActions : '';
-    const whyRaise = !id ? 'Select one of your regions to raise hosts there.'
-      : !mine ? `You do not hold ${REGIONS[id].name}.`
+    const whyRaise = !mine ? 'You do not hold ' + REGIONS[id].name + '.'
       : !canAct ? noActions : '';
-    const whyBuild = !build.ok ? (build.why || 'Select a region you hold to raise a Holding.')
+    const whyBuild = !build.ok ? (build.why || 'Nothing can be built here.')
       : !canAct ? noActions : '';
     const whyMon = !mon.ok ? (mon.why || 'No Monument can be raised right now.')
       : !canAct ? noActions : '';
+    const whyHold = !isReaction
+      ? 'Banking is a Reaction only. On your own Turn, act as often as you can afford, then end it.'
+      : (G.reactionActionTaken ? noActions : '');
 
-    /* aria-disabled, not disabled: a disabled button swallows the tap, and the
-       question "why can't I?" is the one moment the interface must answer. */
-    const gate = (cls, why) => why
-      ? `class="${cls} is-off" aria-disabled="true" data-why="${esc(why)}"`
-      : `class="${cls}"`;
+    return [
+      { id: 'march', label: UI.mode === 'march' ? 'Cancel march' : 'March / Attack',
+        why: whyMarch,
+        run: () => { UI.mode = UI.mode === 'march' ? 'idle' : 'march'; UI.render(); } },
+      { id: 'raise', label: 'Raise host', why: whyRaise, run: () => UI.openRaise(id) },
+      { id: 'build', label: build.ok ? 'Build (' + build.cost + ')' : 'Build Holding',
+        why: whyBuild, run: () => UI.confirmBuild(pi, id, build) },
+      { id: 'monument', label: 'Monument', why: whyMon, run: () => UI.openMonument(pi) },
+      { id: 'hold', label: 'Hold / bank', why: whyHold, run: () => UI.spendAction(true) },
+      { id: 'endturn', label: isReaction ? 'End Reaction' : 'End Turn', why: '',
+        primary: true, run: () => UI.endTurn() }
+    ];
+  },
 
-    el.innerHTML = `
-      <h3>${isReaction ? 'Reaction' : 'Your Turn'}${budgetTag}</h3>
-      <div class="actions-grid">
-        <button ${gate('ghost', whyMarch)} id="a-march">
-          ${UI.mode === 'march' ? 'Cancel march' : 'March / Attack'}
-        </button>
-        <button ${gate('ghost', whyRaise)} id="a-raise">Raise host</button>
-        <button ${gate('ghost', whyBuild)} id="a-build"
-          title="${build.ok ? esc(UI.costTitle(build)) : esc(build.why || 'Select a region you hold.')}">
-          Build ${build.ok ? `(${build.cost})` : 'Holding'}
-        </button>
-        <button ${gate('ghost', whyMon)} id="a-monument"
-          title="${mon.ok ? 'Turn hoarded Tribute into Renown XP — ' + MONUMENT_RATE + ' Tribute per XP, once per Round.' : esc(mon.why || '')}">
-          Monument</button>
-        ${isReaction ? `<button class="ghost" id="a-hold">Hold / bank</button>` : ''}
-        ${surr ? `<button class="danger wide" id="a-surrender">Surrender</button>` : ''}
-        <button class="primary wide" id="a-end">${isReaction ? 'End Reaction' : 'End Turn'}</button>
-      </div>
-      <p class="hintline">${
-        UI.mode === 'march'
-          ? 'Pick a highlighted destination. Dashed borders are legal targets.'
-          : isReaction
-            ? (G.reactionActionTaken ? 'Action spent — end your Reaction.' : 'One action, then play passes on.')
-            : 'Act as often as your Tribute allows, then end your Turn.'
-      }</p>
-    `;
+  /* The reference half of a region: what the map cannot draw. Troop types and
+     counts are already on the board as silhouettes with numbers, and defence
+     dice already fly a verdigris flag at 3+, so none of that is repeated here.
+     What is genuinely missing from the board is income, ground and what raises. */
+  regionInfo(id) {
+    const rs = G.regions[id], def = REGIONS[id], t = REGION_TYPES[def.type];
+    const owner = rs.owner === null ? 'Unclaimed' : G.players[rs.owner].name;
+    const col = rs.owner === null ? 'var(--ink-dim)' : G.players[rs.owner].colour.hex;
+    const d = UI.defenceRating(id);
+    const held = Rules.hostCount(rs);
+    return '<div class="pv-row"><span class="k">Holder</span>'
+         + '<span class="v" style="color:' + col + '">' + esc(owner) + '</span></div>'
+      + '<div class="pv-row"><span class="k">Ground</span><span class="v">'
+         + esc(t.name) + ' · ' + esc(DOMAINS[def.domain].name) + '</span></div>'
+      + '<div class="pv-row"><span class="k">Income</span><span class="v">' + t.income
+         + (rs.holding ? ' <b>+' + HOLDING_INCOME[rs.holding - 1] + '</b> from a tier '
+              + rs.holding + ' Holding' : '')
+         + '</span></div>'
+      + (held ? '<div class="pv-row"><span class="k">Defends</span><span class="v">' + d.dice
+           + ' dice' + (d.notes.length ? ' — ' + esc(d.notes.join(', ')) : '')
+           + '</span></div>' : '')
+      + '<div class="pv-row"><span class="k">Raises</span><span class="v">'
+         + esc(UI.raisableAt(id).join(', ') || 'nothing on-type — off-type costs double')
+         + '</span></div>'
+      + (rs.unrest > 0 ? '<p class="pv-note blood">Restive — newly conquered. Pays no Tribute '
+           + 'and cannot be developed until you hold it through one of your Turns.</p>' : '')
+      + '<p class="pv-note">' + esc(t.note) + '</p>';
+  },
 
-    /* One gate for every action button: if the control carries a reason it
-       cannot run, that reason is what the tap produces. Nothing re-renders on
-       a refusal — a repaint would replace the button mid-nudge. */
-    const on = (sel, fn) => {
-      const b = $(sel);
-      if (!b) return;
-      b.addEventListener('click', () => {
-        if (b.dataset.why) { UI.fx.refuse(b, b.dataset.why); return; }
-        fn();
-      });
-    };
-    on('#a-march', () => { UI.mode = UI.mode === 'march' ? 'idle' : 'march'; UI.render(); });
-    on('#a-raise', () => UI.openRaise(id));
-    on('#a-build', () => { Rules.buildHolding(pi, id); UI.spendAction(); });
-    on('#a-monument', () => UI.openMonument(pi));
-    on('#a-hold', () => { if (isReaction) { UI.spendAction(true); } else { UI.render(); } });
-    on('#a-end', () => UI.endTurn());
-    on('#a-surrender', () => UI.confirmSurrender(pi));
+  /* Tap a region you hold and you get the six actions. Tap one you do not and
+     you get what is worth knowing about it and nothing to press, because there
+     is nothing there you could do. */
+  openRegion(id, at) {
+    const pi = UI.actingIndex();
+    const rs = G.regions[id], def = REGIONS[id];
+    const mine = rs.owner === pi;
+    const playable = mine && G.phase !== 'gameover' && !AI.isAI(pi) && !UI.modalOpen();
+    const info = UI.regionInfo(id);
+
+    if (!playable) {
+      UI.pv.open({ kind: 'region', ctx: id, variant: 'anchor', at: at,
+        title: esc(def.name), aria: def.name, body: info });
+      return;
+    }
+
+    const acts = UI.actionModel(id);
+    const left = G.phase === 'reaction'
+      ? (G.reactionActionTaken ? 0 : 1) : Rules.actionsLeft(pi);
+    const grid = '<div class="pv-grid">' + acts.map(a =>
+        '<button class="pv-act' + (a.why ? ' is-off' : '') + (a.primary ? ' is-primary' : '')
+        + '" type="button" data-a="' + a.id + '"'
+        + (a.why ? ' aria-disabled="true"' : '')
+        + ' aria-label="' + esc(a.label) + (a.why ? ' — unavailable' : '') + '">'
+        + Icons.svg(a.id, 26, 'currentColor')
+        + '<span>' + esc(a.label) + '</span></button>').join('')
+      + '</div>';
+
+    UI.pv.open({
+      kind: 'region', ctx: id, variant: 'sheet', flush: true,
+      title: esc(def.name),
+      sub: '<span class="pv-budget' + (left ? '' : ' spent') + '">' + left
+         + ' action' + (left === 1 ? '' : 's') + '</span>',
+      aria: def.name,
+      body: grid + '<div class="pv-info">' + info + '</div>',
+      wire: card => {
+        acts.forEach(a => {
+          const b = card.querySelector('[data-a="' + a.id + '"]');
+          if (!b) return;
+          /* A refusal must NOT close or repaint: the answer to "why not" is
+             destroyed by the very render that would replace the button. */
+          if (a.why) { b.addEventListener('click', () => UI.fx.refuse(b, a.why)); return; }
+          b.addEventListener('click', UI.pv.commit(a.run));
+        });
+      }
+    });
+  },
+
+  /* Building is the one action whose price is not obvious from the board, so
+     it shows the bill before it spends anything. */
+  confirmBuild(pi, id, build) {
+    const tier = (G.regions[id].holding || 0) + 1;
+    const p = G.players[pi];
+    UI.pv.open({
+      kind: 'build', ctx: id, variant: 'sheet',
+      title: 'Raise a tier ' + tier + ' Holding',
+      sub: esc(REGIONS[id].name),
+      aria: 'Confirm Holding',
+      body: '<div class="pv-row"><span class="k">Cost</span><span class="v">'
+          + esc(UI.costTitle(build)) + '</span></div>'
+        + '<div class="pv-row"><span class="k">Treasury</span><span class="v">'
+          + p.tribute + ' Tribute, ' + (p.tribute - build.cost) + ' after</span></div>'
+        + '<div class="pv-row"><span class="k">Gains</span><span class="v">+'
+          + HOLDING_INCOME[tier - 1] + ' income each Round'
+          + (tier >= 2 ? ', +1 defence die' : '') + '</span></div>'
+        + '<div class="pv-foot">'
+        + '<button class="ghost" type="button" data-x="no">Not yet</button>'
+        + '<button class="primary" type="button" data-x="yes">Build it</button></div>',
+      wire: card => {
+        card.querySelector('[data-x="no"]').addEventListener('click', UI.pv.close);
+        card.querySelector('[data-x="yes"]').addEventListener('click',
+          UI.pv.commit(() => { Rules.buildHolding(pi, id); UI.spendAction(); }));
+      }
+    });
+  },
+
+  /* The player chip. Everything the "you" panel carried, plus the Domain
+     legend that used to live in the phase strip, plus Surrender — which belongs
+     with the rest of your own standing rather than loose beside the map. */
+  openPlayer(i) {
+    const p = G.players[i];
+    const patron = Rules.patronOf(p);
+    const s = Rules.scoreFor(i);
+    const next = p.level < MAX_LEVEL ? XP_THRESHOLDS[p.level] : null;
+    const yours = i === UI.actingIndex() && !AI.isAI(i) && G.phase !== 'gameover';
+
+    const domains = Object.keys(DOMAINS).map(dk => {
+      const done = Rules.domainComplete(i, dk);
+      return '<span class="dm' + (done ? ' done' : '') + '">'
+           + '<i style="background:' + DOMAINS[dk].tint + '"></i>' + esc(DOMAINS[dk].name)
+           + (done ? ' ✦' : '') + '</span>';
+    }).join('');
+
+    const chips = p.boons.map(b => {
+      const bd = patron.boons.find(x => x.id === b);
+      return bd ? '<span class="boon-chip" data-tip="<b>' + esc(bd.name) + '</b><br>'
+                + esc(bd.text) + '">' + esc(bd.name) + '</span>' : '';
+    }).join('') + p.perks.map(k => {
+      const pk = CHAMPION_PERKS.find(x => x.id === k);
+      return pk ? '<span class="boon-chip perk" data-tip="<b>' + esc(pk.name)
+                + '</b> — Champion Perk<br>' + esc(pk.text) + '">' + esc(pk.name)
+                + '</span>' : '';
+    }).join('');
+
+    UI.pv.open({
+      kind: 'player', ctx: i, variant: 'drop',
+      title: '<span class="dot" style="background:' + p.colour.hex + '"></span> ' + esc(p.name),
+      sub: AI.isAI(i) ? esc(AI.personality(i).name) : '',
+      aria: p.name,
+      body:
+        '<p class="pv-note">' + esc(patron.name) + ' ' + esc(patron.epithet) + ' — '
+          + esc(patron.passive) + '</p>'
+      + '<div class="pv-row"><span class="k">Tribute</span><span class="v">' + p.tribute
+          + ' <small>+' + (Rules.incomeFor(i) - Rules.upkeepFor(i)) + ' a Round</small></span></div>'
+      + '<div class="pv-row"><span class="k">Renown</span><span class="v">' + p.level
+          + ' <small>' + esc(tierFor(p.level)) + '</small></span></div>'
+      + '<div class="pv-row"><span class="k">Progress</span><span class="v">'
+          + (next ? p.xp + ' / ' + next + ' XP' : 'Apotheosis reached') + '</span></div>'
+      + '<div class="pv-row"><span class="k">Score</span><span class="v">' + s.total + ' vp</span></div>'
+      + '<div class="pv-sec">Domains</div><div class="domains">' + domains + '</div>'
+      + (chips ? '<div class="pv-sec">Claimed this match</div><div class="boonlist">'
+          + chips + '</div>' : '')
+      + (p.fallen ? '<p class="pv-note blood">Champion fallen.</p>' : '')
+      + (yours && Rules.canSurrender(i)
+          ? '<div class="pv-foot"><button class="danger" type="button" data-x="surr">Surrender</button></div>'
+          : ''),
+      wire: card => {
+        const b = card.querySelector('[data-x="surr"]');
+        if (b) b.addEventListener('click', UI.pv.commit(() => UI.confirmSurrender(i)));
+      }
+    });
   },
 
   /* "10 tier 2 base − 2 Farmland − 2 Ilthara = 6" */
@@ -4655,65 +5232,90 @@ const UI = {
     return `<div class="costcalc">${bits} = <b>${build.cost} Tribute</b></div>`;
   },
 
-  renderLog() {
-    $('#log').innerHTML = `<h3>Chronicle</h3>` + G.log.slice(0, 60).map(e => {
-      const col = e.player !== null && e.player !== undefined ? G.players[e.player].colour.hex : 'transparent';
-      return `<div class="log-entry k-${e.kind}"><span class="bar" style="background:${col}"></span><span>${esc(e.text)}</span></div>`;
+  /* ================= chronicle ================= */
+
+  /* Was a panel pinned under everything else and read maybe twice a match.
+     As a dropdown it costs nothing when you are not reading it, and when you
+     are, it gets the whole screen instead of a nine-rem strip. */
+  openChronicle() {
+    const rows = G.log.slice(0, 80).map(e => {
+      const col = (e.player !== null && e.player !== undefined)
+        ? G.players[e.player].colour.hex : 'transparent';
+      return '<div class="log-entry k-' + e.kind + '">'
+           + '<span class="bar" style="background:' + col + '"></span>'
+           + '<span>' + esc(e.text) + '</span></div>';
     }).join('');
+    UI.pv.open({
+      kind: 'chronicle', variant: 'drop',
+      title: 'Chronicle', aria: 'Chronicle',
+      sub: 'Round ' + G.round + ' of ' + ROUND_LIMIT,
+      body: rows || '<p class="pv-note">Nothing has happened yet.</p>'
+    });
   },
 
-  renderPhaseStrip() {
-    const p = UI.acting();
-    const strip = $('#phase-strip');
-    if (G.phase === 'gameover') {
-      strip.innerHTML = `<span class="phase-tag">Concluded</span><span class="phase-hint">The war is decided.</span>`;
-      return;
-    }
-    const isReaction = G.phase === 'reaction';
-    const legend = Object.keys(DOMAINS).map(dk => {
-      const held = G.players.findIndex(q => !q.surrendered && Rules.domainComplete(q.index, dk));
-      return `<span class="dm ${held >= 0 ? 'done' : ''}">
-        <i style="background:${DOMAINS[dk].tint}"></i>${esc(DOMAINS[dk].name)}
-        ${held >= 0 ? `<em style="color:${G.players[held].colour.hex}">✦</em>` : ''}</span>`;
+  /* ================= how to play ================= */
+
+  /* The hamburger. Rules, every host with its symbol beside its name, region
+     types and scoring — plus the two controls that used to sit in the top bar
+     as their own buttons. The troop key was a separate panel that repeated
+     these same names without the rules; one surface now carries both, so the
+     silhouette you are looking at on the board and the sentence explaining it
+     are in the same place. */
+  openMenu() {
+    const units = Object.keys(UNITS).map(u => {
+      const U = UNITS[u];
+      const owner = U.patron ? PATRONS[U.patron].name : null;
+      return '<div class="ref-item has-ico">'
+        + '<svg class="ref-ico" viewBox="-9 -10 18 20" width="17" height="19" aria-hidden="true">'
+        + UI.troopShape(u, '#c98f47') + '</svg>'
+        + '<b>' + esc(U.name) + ' <i>' + U.cost + 't</i>'
+        + (owner ? ' <em class="ref-only">' + esc(owner) + ' only</em>' : '') + '</b>'
+        + '<span>' + esc(U.rule) + '</span></div>';
     }).join('');
-    strip.innerHTML = `
-      <span class="phase-tag ${isReaction ? 'reaction' : ''}">${isReaction ? 'Reaction' : 'Turn'}</span>
-      <span class="phase-hint">
-        <b style="color:${p.colour.hex}">${esc(p.name)}</b>
-        ${isReaction
-          ? ` reacts to ${esc(Rules.turnPlayer().name)}'s Turn — ${G.reactionIndex + 1} of ${G.reactionQueue.length}.`
-          : ` holds the Turn. Attack, march, raise, build.`}
-      </span>
-      <span class="domains">${legend}</span>`;
+
+    const regions = Object.keys(REGION_TYPES).map(t =>
+      '<div class="ref-item"><b>' + esc(REGION_TYPES[t].name) + ' <i>'
+      + REGION_TYPES[t].income + ' income</i></b><span>'
+      + esc(REGION_TYPES[t].note) + '</span></div>').join('');
+
+    const spd = UI.speedCtl;
+    UI.pv.open({
+      kind: 'menu', variant: 'drop',
+      title: 'How this works', aria: 'How to play',
+      body:
+        '<div class="pv-foot top">'
+        + '<button class="ghost" type="button" data-x="tut">Walkthrough</button>'
+        + (spd ? '<button class="ghost" type="button" data-x="spd">Speed: '
+            + esc(spd.name()) + '</button>' : '')
+        + '</div>'
+      + '<p class="pv-note">Attacker rolls up to 3 dice, defender up to 2. Highest against '
+        + 'highest — <b>ties go to the defender</b>. Tribute arrives every Turn and never '
+        + 'caps. Renown is earned by playing, and losing battles still earns it — or it can '
+        + 'be bought outright with a Monument.</p>'
+      + '<div class="pv-sec">Hosts</div><div class="ref-grid">' + units + '</div>'
+      + '<div class="pv-sec">Regions</div><div class="ref-grid">' + regions + '</div>'
+      + '<div class="pv-sec">Scoring</div><div class="ref-grid">'
+      + '<div class="ref-item"><b>Complete Domain <i>' + VP.domain + ' vp</i></b>'
+        + '<span>Every region in a Domain, held at the end. Doubles Holding income too.</span></div>'
+      + '<div class="ref-item"><b>Holding <i>' + VP.holding + ' vp</i></b>'
+        + '<span>Each standing Holding.</span></div>'
+      + '<div class="ref-item"><b>Renown level <i>' + VP.renownLevel + ' vp</i></b>'
+        + '<span>Per level reached.</span></div>'
+      + '<div class="ref-item"><b>Rival Throne <i>' + VP.rivalThrone + ' vp</i></b>'
+        + '<span>Each enemy seat you still hold.</span></div>'
+      + '</div>',
+      wire: card => {
+        const t = card.querySelector('[data-x="tut"]');
+        if (t) t.addEventListener('click', UI.pv.commit(() => UI.openTutorial(0)));
+        const b = card.querySelector('[data-x="spd"]');
+        /* Updates its own label in place rather than rebuilding the sheet —
+           a repaint here would scroll the reader back to the top. */
+        if (b) b.addEventListener('click', () => { b.textContent = 'Speed: ' + UI.speedCtl.cycle(); });
+      }
+    });
   },
 
   /* ================= hint bar ================= */
-
-  /* Says what just happened and what you can do about it right now.
-     The first playthrough made clear that a chronicle of events is not the
-     same thing as knowing what your options are. */
-  /* Every unit in the game, including the patron elites you can never raise
-     yourself. You still have to recognise a Caravaneer when one is sitting on
-     the board in front of you. */
-  renderKey() {
-    const el = $('#troopkey');
-    if (!el) return;
-    const pi = UI.actingIndex();
-    const mine = Rules.availableUnits(pi);
-    const all = Object.keys(UNITS);
-    el.innerHTML = `<h3>Hosts</h3><div class="key-grid">` + all.map(u => {
-      const U = UNITS[u];
-      const own = mine.includes(u);
-      const owner = U.patron ? PATRONS[U.patron].name : null;
-      return `<div class="key-item ${own ? '' : 'foreign'}"
-        data-tip="${esc(U.rule)}${owner ? ' — ' + esc(owner) + ' only' : ''}${own ? '' : ' · you cannot raise this'}">
-        <svg class="key-svg" viewBox="-9 -10 18 20" width="16" height="18">
-          ${UI.troopShape(u, own ? '#c98f47' : '#74737f')}</svg>
-        <span class="key-nm">${esc(U.name)}</span>
-        <span class="key-ct">${U.cost}t</span>
-      </div>`;
-    }).join('') + `</div>`;
-  },
 
   renderHint() {
     const bar = $('#hintbar');
@@ -4755,7 +5357,30 @@ const UI = {
       }
     }
 
-    bar.innerHTML = `<span class="hb-icon">${isReaction ? 'Reaction' : 'Hint'}</span><span>${tip}</span>`;
+    /* End Turn also lives in the region popup, which means reaching it costs a
+       tap on one of your own regions first. When there is nothing left to
+       spend, the hint bar stops being advice and becomes the control — no new
+       chrome, and the line already said "no actions left". */
+    const spent = !AI.isAI(pi) && G.phase !== 'gameover' && UI.mode !== 'march'
+      && (isReaction ? G.reactionActionTaken : Rules.actionsLeft(pi) === 0);
+
+    bar.innerHTML = `<span class="hb-icon">${isReaction ? 'Reaction' : 'Hint'}</span>`
+      + `<span>${spent ? (isReaction
+            ? 'Your Reaction is spent.'
+            : 'Nothing left to spend this Turn.') : tip}</span>`
+      + (spent ? `<button class="hb-end" id="hb-end" type="button">`
+            + Icons.svg('endturn', 16, 'currentColor')
+            + `<span>${isReaction ? 'End Reaction' : 'End Turn'}</span></button>` : '');
+
+    if (spent) {
+      const b = $('#hb-end');
+      let committed = false;
+      b.addEventListener('click', () => {
+        if (committed) return;      /* rule 1f: one tap, one turn ended */
+        committed = true;
+        UI.endTurn();
+      });
+    }
   },
 
   /* ================= first-run tutorial ================= */
@@ -4822,7 +5447,6 @@ const UI = {
   /* ================= turn flow ================= */
 
   spendAction(alsoEnd) {
-    UI.sheet(false);
     if (G.phase === 'turn') Rules.spendAction();
     if (G.phase === 'reaction') {
       G.reactionActionTaken = true;
@@ -4834,7 +5458,6 @@ const UI = {
   },
 
   endTurn() {
-    UI.sheet(false);
     UI.mode = 'idle';
     const before = UI.actingIndex();
     if (G.phase === 'reaction') Rules.endReaction(); else Rules.endTurn();
@@ -5416,31 +6039,6 @@ const UI = {
       <div class="modal-actions"><button class="primary" data-close>Understood</button></div>`);
   },
 
-  openReference() {
-    const units = CORE_UNITS.map(u => `<div class="ref-item"><b>${esc(UNITS[u].name)} <i>${UNITS[u].cost}t</i></b>
-      <span>${esc(UNITS[u].rule)}</span></div>`).join('');
-    const regions = Object.keys(REGION_TYPES).map(t => `<div class="ref-item"><b>${esc(REGION_TYPES[t].name)} <i>${REGION_TYPES[t].income} income</i></b>
-      <span>${esc(REGION_TYPES[t].note)}</span></div>`).join('');
-    UI.modal(`
-      <div class="eyebrow">Reference</div>
-      <h2>How this works</h2>
-      <p>Attacker rolls up to 3 dice, defender up to 2. Highest against highest —
-         <b>ties go to the defender</b>. Tribute arrives every Turn and never caps.
-         Renown is earned by playing, and losing battles still earns it — or bought outright with a Monument.</p>
-      <h3 style="font-family:var(--f-mono);font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim);margin:1.2rem 0 0">Hosts</h3>
-      <div class="ref-grid">${units}</div>
-      <h3 style="font-family:var(--f-mono);font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim);margin:1.2rem 0 0">Regions</h3>
-      <div class="ref-grid">${regions}</div>
-      <h3 style="font-family:var(--f-mono);font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim);margin:1.2rem 0 0">Scoring</h3>
-      <div class="ref-grid">
-        <div class="ref-item"><b>Complete Domain <i>${VP.domain} vp</i></b><span>Every region in a Domain, held at the end. Doubles Holding income too.</span></div>
-        <div class="ref-item"><b>Holding <i>${VP.holding} vp</i></b><span>Each standing Holding.</span></div>
-        <div class="ref-item"><b>Renown level <i>${VP.renownLevel} vp</i></b><span>Per level reached.</span></div>
-        <div class="ref-item"><b>Rival Throne <i>${VP.rivalThrone} vp</i></b><span>Each enemy seat you still hold.</span></div>
-      </div>
-      <div class="modal-actions"><button class="primary" data-close>Close</button></div>`);
-  },
-
   openGameOver() {
     const rows = [...G.finalScores].sort((a, b) => b.total - a.total).map(s => {
       const p = G.players[s.player];
@@ -5905,14 +6503,17 @@ const UI = {
     $('#setup').classList.add('hidden');
     $('#game').classList.remove('hidden');
     UI.fx.reset();
-    $('#btn-rules').addEventListener('click', () => UI.openReference());
-    $('#btn-speed').addEventListener('click', () => {
-      speedIdx = (speedIdx + 1) % SPEEDS.length;
-      AI.delay = SPEEDS[speedIdx].ms;
-      $('#btn-speed').textContent = 'Speed: ' + SPEEDS[speedIdx].name;
-    });
-    $('#btn-speed').textContent = 'Speed: ' + SPEEDS[speedIdx].name;
-    $('#btn-help').addEventListener('click', () => UI.openTutorial(0));
+    /* Speed used to be its own button in the top bar. The bar is now one
+       nowrap row with no spare width, so the control moved into the
+       how-to-play sheet and the state moved onto UI, which is what draws it. */
+    UI.speedCtl = {
+      name()  { return SPEEDS[speedIdx].name; },
+      cycle() {
+        speedIdx = (speedIdx + 1) % SPEEDS.length;
+        AI.delay = SPEEDS[speedIdx].ms;
+        return SPEEDS[speedIdx].name;
+      }
+    };
     UI.render();
     if ($('#show-tutorial').checked) UI.openTutorial(0);
   });
