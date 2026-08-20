@@ -1376,6 +1376,34 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   background: var(--bronze); border: 3px solid var(--ground); box-shadow: var(--elev-2);
 }
 
+/* ============================================================
+   GESTURE PERFORMANCE
+
+   The board carries three full-map feTurbulence layers under
+   mix-blend-mode:overlay. Procedural per-pixel noise on a non-cacheable
+   compositing path: the browser keeps the result only while the paint is
+   static, and every viewBox write throws it away and recomputes the lot.
+   That was the second-long lag behind a pinch.
+
+   Two defences. While fingers are down the camera writes a CSS transform
+   instead of the viewBox, so the compositor reuses the raster it already has
+   and nothing repaints. And the noise is dropped whenever the board is not at
+   rest, so the single commit paint on release is cheap too.
+   ============================================================ */
+
+#map-wrap { overflow: hidden; }        /* the transformed board is clipped */
+
+/* mid-gesture: nothing expensive, and no transitions fighting the transform */
+#map.is-gesturing .land-tex,
+#map.is-gesturing .sea-tex,
+#map.is-gesturing .grain { display: none; }
+#map.is-gesturing * { transition: none !important; }
+
+/* zoomed in, whole-board texture is paid for and not seen — you are looking at
+   one corner of it. Restored the moment the board returns to fit. */
+#map.is-zoomed .land-tex,
+#map.is-zoomed .sea-tex { display: none; }
+
 </style>
 </head>
 <body>
@@ -4379,7 +4407,7 @@ const MapView = {
 
   layerSea() {
     return `<rect x="0" y="0" width="${MAP_W}" height="${MAP_H}" fill="url(#sea)"/>`
-         + `<rect x="0" y="0" width="${MAP_W}" height="${MAP_H}" fill="url(#seaGrain)"/>`;
+         + `<rect class="sea-tex" x="0" y="0" width="${MAP_W}" height="${MAP_H}" fill="url(#seaGrain)"/>`;
   },
 
   /* The whole continent as one silhouette so it casts a single shadow.
@@ -5070,22 +5098,36 @@ const UI = {
     swallow: false,
 
     _wired: false,
-    _pts: new Map(),        /* live pointers, in the order they landed */
-    _mode: null,            /* null | 'pan' | 'pinch'                  */
-    _anchor: null,          /* last pan position, in client px         */
-    _dist: 0,               /* pinch baseline distance                 */
-    _mid: null,             /* pinch baseline midpoint                 */
+    _pts: new Map(),
+    _mode: null,            /* null | 'pan' | 'pinch' */
+    _anchor: null,
+    _dist: 0,
+    _mid: null,
     _moved: false,
     _held: null,
-    _rect: null,            /* cached #map rect, see rect()            */
+    _rect: null,
     _raf: 0,
 
-    /* ---- geometry, computed from OUR OWN state ----
+    /* live-gesture transform, in SCREEN px relative to the committed view */
+    _live: false,
+    _base: null,            /* committed viewBox at gesture start */
+    _gs: 1, _tx: 0, _ty: 0,
+    _traf: 0,
 
-       Never read the viewBox back out of the DOM. It is written with toFixed,
-       so feeding it into the next step compounds the rounding on every single
-       pointermove and the board visibly drifts under the fingers. k/cx/cy are
-       the truth; the attribute is only ever an output. */
+    /* ---- why a transform and not the viewBox ----
+
+       Writing viewBox re-rasterises the whole board. The renderer paints two
+       full-map feTurbulence layers (landRelief, landFibre) and a third over the
+       sea, each under mix-blend-mode:overlay — procedural per-pixel noise on a
+       compositing path that cannot be cached. The browser holds that result
+       only while the paint is static; every viewBox write throws it away and
+       recomputes the lot. That was the second-long lag: the gesture ran ahead
+       of the screen, so a second pinch was already under way before the first
+       one landed.
+
+       So: while fingers are down we touch nothing but a CSS transform, which
+       the compositor applies to the raster it already has. The viewBox is
+       written exactly once, when the last finger lifts. */
 
     rect() {
       const c = UI.cam;
@@ -5094,14 +5136,10 @@ const UI = {
       if (!svg) return null;
       const r = svg.getBoundingClientRect();
       if (!r.width || !r.height) return null;
-      /* Cached for the life of a gesture. getBoundingClientRect forces a
-         synchronous layout, and doing that twice per pointermove at touch
-         sample rates IS the jank. Invalidated on gesture end and on resize. */
       c._rect = { left: r.left, top: r.top, width: r.width, height: r.height };
       return c._rect;
     },
 
-    /* the map-unit size of the window at the current k */
     view() {
       const r = UI.cam.rect();
       if (!r) return null;
@@ -5110,7 +5148,6 @@ const UI = {
       return { w: w, h: w / A, r: r };
     },
 
-    /* the zoom at which the board exactly fills the pane's height */
     fillK() {
       const r = UI.cam.rect();
       if (!r) return 2.7;
@@ -5128,9 +5165,6 @@ const UI = {
       return v;
     },
 
-    /* One attribute write per frame. pointermove fires faster than the display
-       refreshes, so writing on every event just queues work that is thrown
-       away — and on a phone that backlog is what reads as stutter. */
     schedule() {
       const c = UI.cam;
       c.clampNow();
@@ -5146,14 +5180,17 @@ const UI = {
       svg.setAttribute('viewBox',
         (c.cx - v.w / 2).toFixed(2) + ' ' + (c.cy - v.h / 2).toFixed(2) + ' '
         + v.w.toFixed(2) + ' ' + v.h.toFixed(2));
+      /* Zoomed in, the two full-map noise layers cost far more than they give:
+         their texture is a whole-board effect and you are looking at one
+         corner. Dropping them makes the commit paint cheap. */
+      svg.classList.toggle('is-zoomed', c.k > 1.02);
       const fit = $('#cam-fit');
       if (fit) fit.hidden = c.k <= c.MIN + 0.01;
     },
 
-    /* immediate write, for call sites outside a gesture */
     apply() { UI.cam._rect = null; UI.cam.paint(); },
 
-    /* zoom about a screen point, holding the map point under it fixed */
+    /* ---- direct (non-gesture) zoom: buttons, wheel ---- */
     zoomAt(factor, clientX, clientY) {
       const c = UI.cam;
       const v = c.view();
@@ -5180,6 +5217,104 @@ const UI = {
       c.schedule();
     },
 
+    /* ================= live gesture ================= */
+
+    begin() {
+      const c = UI.cam;
+      if (c._live) return;
+      const svg = $('#map');
+      if (!svg) return;
+      c._rect = null;
+      const r = c.rect();
+      const v = c.clampNow();
+      if (!r || !v) return;
+      c._base = { x: c.cx - v.w / 2, y: c.cy - v.h / 2, w: v.w, h: v.h, k: c.k };
+      c._gs = 1; c._tx = 0; c._ty = 0;
+      c._live = true;
+      svg.style.transformOrigin = '0 0';
+      svg.style.willChange = 'transform';
+      svg.classList.add('is-gesturing');
+    },
+
+    /* keep the visible window inside the board while dragging, so nothing has
+       to snap back on release */
+    clampLive() {
+      const c = UI.cam;
+      if (!c._live) return;
+      const r = c._rect, b = c._base;
+      const w2 = b.w / c._gs, h2 = b.h / c._gs;
+      const x2 = b.x - (c._tx * b.w) / (c._gs * r.width);
+      const y2 = b.y - (c._ty * b.h) / (c._gs * r.height);
+      const cx2 = w2 >= MAP_W ? (MAP_W - w2) / 2 : Math.max(0, Math.min(MAP_W - w2, x2));
+      const cy2 = h2 >= MAP_H ? (MAP_H - h2) / 2 : Math.max(0, Math.min(MAP_H - h2, y2));
+      if (cx2 !== x2) c._tx = (b.x - cx2) * c._gs * r.width  / b.w;
+      if (cy2 !== y2) c._ty = (b.y - cy2) * c._gs * r.height / b.h;
+    },
+
+    gZoom(f, clientX, clientY) {
+      const c = UI.cam;
+      if (!c._live || !isFinite(f) || f <= 0) return;
+      const r = c._rect;
+      if (!r) return;
+      const kNow = c._base.k * c._gs;
+      const kNew = Math.max(c.MIN, Math.min(c.MAX, kNow * f));
+      const ff = kNew / kNow;
+      if (ff === 1) return;
+      const ax = clientX - r.left, ay = clientY - r.top;
+      c._tx = ax - (ax - c._tx) * ff;
+      c._ty = ay - (ay - c._ty) * ff;
+      c._gs *= ff;
+      c.clampLive();
+      c.pushTransform();
+    },
+
+    gPan(dx, dy) {
+      const c = UI.cam;
+      if (!c._live) return;
+      c._tx += dx; c._ty += dy;
+      c.clampLive();
+      c.pushTransform();
+    },
+
+    pushTransform() {
+      const c = UI.cam;
+      if (c._traf) return;
+      c._traf = requestAnimationFrame(() => {
+        c._traf = 0;
+        const svg = $('#map');
+        if (!svg || !c._live) return;
+        svg.style.transform =
+          'translate(' + c._tx.toFixed(2) + 'px,' + c._ty.toFixed(2) + 'px) '
+          + 'scale(' + c._gs.toFixed(5) + ')';
+      });
+    },
+
+    /* Fold the transform into the camera and repaint sharp, exactly once. */
+    commit() {
+      const c = UI.cam;
+      if (!c._live) return;
+      const svg = $('#map');
+      const r = c._rect, b = c._base;
+      c._live = false;
+      if (r && b) {
+        const w2 = b.w / c._gs, h2 = b.h / c._gs;
+        const x2 = b.x - (c._tx * b.w) / (c._gs * r.width);
+        const y2 = b.y - (c._ty * b.h) / (c._gs * r.height);
+        c.k  = b.k * c._gs;
+        c.cx = x2 + w2 / 2;
+        c.cy = y2 + h2 / 2;
+      }
+      c._gs = 1; c._tx = 0; c._ty = 0; c._base = null;
+      if (c._traf) { cancelAnimationFrame(c._traf); c._traf = 0; }
+      if (svg) {
+        svg.style.transform = '';
+        svg.style.willChange = '';
+        svg.classList.remove('is-gesturing');
+      }
+      c._rect = null;
+      c.paint();
+    },
+
     reset() {
       const c = UI.cam;
       c._rect = null;
@@ -5195,8 +5330,6 @@ const UI = {
       c.zoomAt(f, r.left + r.width / 2, r.top + r.height / 2);
     },
 
-    /* the two OLDEST live pointers, so a stray third finger cannot reorder the
-       pair the pinch is measured from mid-gesture */
     pair() {
       const v = [...UI.cam._pts.values()];
       return v.length >= 2 ? [v[0], v[1]] : null;
@@ -5216,13 +5349,10 @@ const UI = {
       UI.cam._wired = true;
       const c = UI.cam;
 
-      /* DO NOT capture on pointerdown.
-
-         A captured pointer retargets the click the browser sends on release to
-         the CAPTURING element, so every tap landed on #map-wrap instead of the
-         .region path underneath and UI.clickRegion never ran — the whole board
-         went dead. Capture is taken only once a gesture has committed, when
-         there is no longer a click to protect. */
+      /* DO NOT capture on pointerdown. A captured pointer retargets the click
+         the browser sends on release to the CAPTURING element, so every tap
+         landed on #map-wrap instead of the .region underneath and the board
+         went dead. Capture is taken only once a gesture has committed. */
       const grab = id => {
         if (c._held != null) return;
         try { wrap.setPointerCapture(id); c._held = id; } catch (err) {}
@@ -5230,28 +5360,25 @@ const UI = {
       const release = () => {
         if (c._held == null) return;
         const id = c._held;
-        c._held = null;          /* cleared FIRST: releasing fires
-                                    lostpointercapture, and if that re-enters
-                                    here the gesture ends twice */
+        c._held = null;      /* cleared FIRST: releasing fires
+                                lostpointercapture, which must not re-enter */
         try { wrap.releasePointerCapture(id); } catch (err) {}
       };
 
       wrap.addEventListener('pointerdown', e => {
         c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (c._pts.size === 1) {
-          c._rect = null;        /* measure once, at the start of the gesture */
-          c.rect();
           c._mode = null;
           c._moved = false;
           c._anchor = { x: e.clientX, y: e.clientY };
         } else if (c._pts.size === 2) {
-          /* Seed the baseline the instant the second finger lands, not on the
-             first move after it. A frame late meant whatever distance the
-             fingers covered in that frame was read as an instant jump in zoom. */
+          /* Seed the baseline the instant the second finger lands. A frame
+             late meant the travel in that frame read as an instant jump. */
           c._mode = 'pinch';
           c._moved = true;
+          c.begin();
           c.seedPinch();
-          grab(e.pointerId);     /* two fingers is never a tap */
+          grab(e.pointerId);
         }
       });
 
@@ -5265,11 +5392,9 @@ const UI = {
           const dist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
           const mid  = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
           if (c._dist > 0 && dist > 0) {
-            /* Two fingers pan as well as zoom. Without this the board is
-               pinned in place while the hand moves, which is most of what
-               "it barely works" feels like. */
-            c.panBy(mid.x - c._mid.x, mid.y - c._mid.y);
-            c.zoomAt(dist / c._dist, mid.x, mid.y);
+            /* two fingers pan as well as zoom */
+            c.gPan(mid.x - c._mid.x, mid.y - c._mid.y);
+            c.gZoom(dist / c._dist, mid.x, mid.y);
           }
           c._dist = dist;
           c._mid  = mid;
@@ -5278,10 +5403,14 @@ const UI = {
 
         if (!c._anchor) return;
         const dx = e.clientX - c._anchor.x, dy = e.clientY - c._anchor.y;
-        /* under the threshold this is still a tap; a 3px wobble is not a pan */
+        /* a 3px wobble is a tap, not a pan */
         if (c._mode !== 'pan' && Math.hypot(dx, dy) < 8) return;
-        if (c._mode !== 'pan') { c._mode = 'pan'; c._moved = true; grab(e.pointerId); }
-        c.panBy(dx, dy);
+        if (c._mode !== 'pan') {
+          c._mode = 'pan'; c._moved = true;
+          c.begin();
+          grab(e.pointerId);
+        }
+        c.gPan(dx, dy);
         c._anchor = { x: e.clientX, y: e.clientY };
       });
 
@@ -5289,9 +5418,8 @@ const UI = {
         if (!c._pts.delete(e.pointerId)) return;
 
         if (c._pts.size === 1) {
-          /* THE LIFT JUMP. The anchor still held the point where the FIRST
-             finger landed, so the surviving finger resumed panning from there
-             and the board leapt across the screen every time a pinch ended.
+          /* THE LIFT JUMP. The anchor held where the FIRST finger landed, so
+             the survivor resumed panning from there and the board leapt.
              Re-seed to where the remaining finger actually is. */
           const rest = [...c._pts.values()][0];
           c._anchor = { x: rest.x, y: rest.y };
@@ -5303,13 +5431,11 @@ const UI = {
 
         if (c._pts.size === 0) {
           release();
+          c.commit();              /* the one and only viewBox write */
           c._mode = null;
           c._anchor = null;
           c._dist = 0;
           c._mid = null;
-          c._rect = null;
-          /* Swallow the click a gesture produces, or letting go of a pan over
-             a territory selects it. */
           if (c._moved) { c.swallow = true; setTimeout(() => { c.swallow = false; }, 0); }
           c._moved = false;
         }
@@ -5320,16 +5446,13 @@ const UI = {
       wrap.addEventListener('wheel', e => {
         e.preventDefault();
         c._rect = null;
-        /* ctrlKey is how a trackpad pinch arrives, and it wants finer steps */
         const f = e.ctrlKey ? Math.exp(-e.deltaY * 0.01)
                             : (e.deltaY < 0 ? 1.12 : 1 / 1.12);
         c.zoomAt(f, e.clientX, e.clientY);
       }, { passive: false });
 
       /* iOS Safari runs its own pinch on the PAGE and touch-action does not
-         stop it, so a two-finger gesture zoomed the document rather than the
-         board — two zooms fighting, which is exactly "borderline does not
-         work". These are the only events that suppress it. */
+         stop it, so two fingers zoomed the document as well as the board. */
       ['gesturestart', 'gesturechange', 'gestureend'].forEach(t =>
         wrap.addEventListener(t, ev => ev.preventDefault(), { passive: false }));
       wrap.addEventListener('touchmove', ev => {
