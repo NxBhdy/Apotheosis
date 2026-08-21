@@ -4436,6 +4436,26 @@ const MapView = {
          + `<rect class="sea-tex" x="0" y="0" width="${MAP_W}" height="${MAP_H}" fill="url(#seaGrain)"/>`;
   },
 
+  /* The camera's viewBox is sized to match the pane's own aspect ratio at
+     every zoom level, so no zoom level ever letterboxes. That is correct once
+     the viewBox is small enough to fit inside the board (roughly k >= 2.7 —
+     the "fill" zoom); below that, matching the pane's (tall, narrow) aspect
+     forces the viewBox TALLER than the board's own 960 units of content — up
+     to 1646 extra units at k=1. Nothing has ever been painted out there, so
+     that band read as raw transparency, which the game's own dark ground
+     colour behind the SVG turns into a near-black gap. It affects the entire
+     zoomed-OUT half of the range, tapering to zero exactly at fill zoom —
+     which is why it showed up specifically "zooming back out."
+
+     Fixed by painting UNDER everything, generously past any plausible
+     viewBox extent on any device aspect, in the sea gradient's own outermost
+     tone — so what over-scrolls into that band reads as more sea, not a
+     hole in the world. */
+  layerVoid() {
+    return `<rect x="-2400" y="-3400" width="${MAP_W + 4800}" height="${MAP_H + 6800}"
+              fill="#1e4b6b" pointer-events="none"/>`;
+  },
+
   /* The whole continent as one silhouette so it casts a single shadow.
      Shadowing each territory separately made the board read as scattered
      tiles rather than land. */
@@ -4702,7 +4722,7 @@ const MapView = {
       targets: (UI.mode === 'march' && G.selected) ? UI.marchTargets(G.selected) : {}
     };
 
-    let out = MapView.mapDefs() + MapView.layerSea() + MapView.layerShelf()
+    let out = MapView.mapDefs() + MapView.layerVoid() + MapView.layerSea() + MapView.layerShelf()
             + MapView.layerLandmass();
 
     /* Territories are drawn full-size and trimmed to the coastline, so the
@@ -5266,7 +5286,20 @@ const UI = {
 
        The measurement now happens in a frame of its own, after the paint has
        settled, so by the time fingers land the number is already there. */
-    stale() { UI.cam._rect = null; },
+    /* Never invalidate the cache WHILE a gesture is live.
+
+       render() calls this on every repaint — including ones that have nothing
+       to do with the camera, like an AI turn updating the board while the
+       player is mid-drag. rect() does not check _live before it measures, so
+       nulling the cache here would make the very next pointermove of an
+       ONGOING pan hit the same forced-layout cost gesture-start already paid
+       once and fixed — except now paid repeatedly, mid-drag, every time
+       something else happens to render. That reads as scrolling stuttering
+       for no visible reason, because the reason is a background AI move the
+       player never asked about. The pane's own box realistically doesn't
+       resize mid-gesture anyway; commit() unconditionally invalidates once
+       the gesture ends, and warm() picks up any real change from there. */
+    stale() { if (!UI.cam._live) UI.cam._rect = null; },
     warm() {
       const c = UI.cam;
       if (c._warmRaf) return;
