@@ -141,6 +141,67 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 .check { display: flex; align-items: center; gap: .6rem; margin-top: 1.6rem; color: var(--ink-mid); font-size: .9rem; }
 .check input { accent-color: var(--bronze); width: 1rem; height: 1rem; }
 
+/* identical to the inline style it replaced — a class so the phone rule below
+   can give it its own line without touching a style="" attribute */
+.setup-note { font-size: .8rem; color: var(--ink-dim); }
+
+/* ---------------- setup screen: phone ----------------
+
+   Never adapted for a narrow screen before — every other @media block in
+   this file is in-game UI. Measured on a real 375x812 page before touching
+   anything: .setup-card was 1597px tall, 785px over the viewport, and 1049 of
+   those 1597 — two thirds of the whole screen — was #patron-picks alone.
+
+   The cause was .pick's own grid: swatch + name + the Human/AI toggle + the
+   patron/personality picker all forced onto ONE row (1.5rem, 7.5rem, auto,
+   1fr). On a 375px phone that starved the picker column to ~146px — barely
+   over the 9rem a single option needs — so every patron and AI personality
+   option stacked one per row with its full description, and did that FOUR
+   TIMES, once per warlord. Stacking the row so the picker gets the full card
+   width fixes the actual cause; the padding trims below are secondary. */
+@media (max-width: 900px) {
+  #setup { padding: .8rem .7rem; }
+  .setup-card { padding: 1.1rem .9rem 1rem; }
+  .setup-card h1 { font-size: clamp(1.9rem, 10vw, 2.5rem); margin: .3rem 0 .35rem; }
+  .setup-blurb { margin: 0 0 1.05rem; font-size: .88rem; }
+
+  .setup-row {
+    flex-wrap: wrap; row-gap: .5rem; margin-bottom: 1rem;
+  }
+  .setup-note { flex: 1 1 100%; }   /* its own line, full width, wraps cleanly */
+
+  /* the pick row: header line (swatch, name, Human/AI) then the picker gets
+     the whole width on the line below, instead of a starved 4th column */
+  .pick {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: .35rem .55rem; padding: .5rem 0;
+  }
+  .pick-name { flex: 1 1 auto; min-width: 0; font-size: .92rem; }
+  .seat-type { flex: 0 0 auto; }
+  .patron-seg { flex: 1 1 100%; margin-top: .15rem; }
+  .pick .patron-seg { grid-template-columns: repeat(auto-fit, minmax(6.4rem, 1fr)); gap: .35rem; }
+  /* Explicit px: hiding the blurb below leaves one line of text, and padding
+     alone measured 33.1px tall — under the 44px minimum, caught only by
+     querying the real page. min-height, not just padding, is what enforces it
+     regardless of how the text itself sets the button's natural height. */
+  .patron-opt { padding: .5rem .55rem; font-size: .86rem; min-height: 44px; display: flex; align-items: center; }
+  /* The strategy blurb is a full sentence and was the dominant cost — three
+     lines per option, repeated for 2-3 options across 4 warlords. The name
+     alone is enough to pick between defaults on a screen this size; the full
+     text is one tap away in a warlord's own chip menu and in How to play,
+     so nothing is actually lost, just deferred past first setup. */
+  .patron-opt small { display: none; }
+
+  /* explicit px, not rem — the root font here is 15px, so rem maths on a
+     touch target silently undershoots the 44px minimum (rule from CLAUDE.md,
+     paid for once already: 2.85rem computed to 42.75px and shipped). */
+  .seg.seat-type button, #player-count button, #assault-limit button {
+    min-height: 44px;
+  }
+  .check { min-height: 44px; margin-top: .3rem; }
+  #start.big { min-height: 50px; width: 100%; margin-top: .3rem; }
+}
+
 /* ---------------- top bar ---------------- */
 
 /* Three rows now: bar, the 3px Renown rule, board. Stated explicitly — when
@@ -1460,7 +1521,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
         <button data-lim="3">3 / Round</button>
         <button data-lim="2">2 / Round</button>
       </div>
-      <span style="font-size:.8rem;color:var(--ink-dim)">Unlimited is the default — you are still
+      <span class="setup-note">Unlimited is the default — you are still
         limited by needing hosts to garrison what you leave and what you take.</span>
     </div>
 
