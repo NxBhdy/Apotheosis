@@ -4399,6 +4399,7 @@ const MapView = {
      changes, only who owns it. */
 
   _relief: {},
+  _deferred: false,   /* a render arrived mid-gesture; see renderMap() */
 
   pointInPolygon(pt, poly) {
     let inside = false;
@@ -4800,6 +4801,21 @@ const MapView = {
      replaced again, because those are the only things a turn can change. */
   renderMap() {
     const svg = $('#map');
+
+    /* Never rebuild the board under a moving finger.
+
+       Replacing the territory groups detaches whatever node the touch landed
+       on, which drops the implicit pointer capture the browser gave it. Even
+       now that losing capture no longer ends the gesture, doing this mid-drag
+       still throws away and recreates ~1700 nodes while the player is dragging
+       them, and an AI turn fires a render every 280-1300ms — so a drag during
+       an AI turn was fighting a full board rebuild several times a second.
+
+       Deferred instead, and flushed by cam.commit() the moment the gesture
+       ends. This is rule 1f's principle — do not rebuild a surface someone is
+       currently touching — applied to the board rather than to a dialog. */
+    if (UI.cam && UI.cam._live) { MapView._deferred = true; return; }
+
     const ctx = {
       sel: G.selected,
       viewer: UI.actingIndex(),
@@ -5556,6 +5572,12 @@ const UI = {
       if (c._traf) { cancelAnimationFrame(c._traf); c._traf = 0; }
       if (svg) svg.style.transform = '';
       c.paint();                   /* cache survives; warm() refreshes it */
+
+      /* Flush any board rebuild that arrived while the finger was down. The
+         gesture is over, so it is safe to replace the nodes now — and the
+         board must not be left showing a state the game has already moved
+         past (an AI captured a territory mid-drag, say). */
+      if (MapView._deferred) { MapView._deferred = false; MapView.renderMap(); }
     },
 
     reset() {
@@ -5607,17 +5629,16 @@ const UI = {
       };
 
       wrap.addEventListener('pointerdown', e => {
-        /* Tell the browser up front that the page owns this touch.
+        /* preventDefault ONLY from the second finger onward.
 
-           Without this, iOS Safari keeps its own pinch-zoom recognizer live
-           alongside ours and arbitrates between them: a slow, gentle pinch
-           reads as ambiguous and is handed to the page quickly, but a fast,
-           wide "violent" pinch reads as a confident native-zoom candidate, so
-           WebKit holds onto it longer before conceding. That is a delay that
-           grows with exactly how fast the gesture is — the symptom this was
-           chasing. preventDefault on pointerdown is the documented way to
-           decline the native gesture immediately rather than let it compete. */
-        e.preventDefault();
+           It is here to stop iOS Safari running its own pinch recognizer
+           alongside ours. But on the FIRST finger it also suppresses the
+           compatibility mouse events a touch generates — which is how a tap
+           becomes a click, and a click is the only thing that selects a
+           territory. touch-action:none already declines browser panning for
+           single-finger drags, so the first pointerdown needs nothing here;
+           only the pinch does. */
+        if (c._pts.size >= 1) e.preventDefault();
 
         /* SELF-HEALING.
 
@@ -5727,13 +5748,30 @@ const UI = {
       };
       wrap.addEventListener('pointerup', end);
       wrap.addEventListener('pointercancel', end);
-      /* Restored: dropped in an earlier rewrite while the comment that
-         referenced it survived — the exact silent-drift trap rule 1c warns
-         about, just in prose instead of a regex. lostpointercapture fires
-         when the OS/browser revokes capture out from under us, which is NOT
-         guaranteed to also fire pointerup/pointercancel on every platform.
-         Routed through the same end() as a normal release. */
-      wrap.addEventListener('lostpointercapture', end);
+
+      /* lostpointercapture must NOT end the gesture. This was mine, added in
+         an earlier pass on the reasoning that losing capture means the OS took
+         the touch away. It does not — and routing it into end() is what made
+         a drag die after exactly one move while the thumb was still down:
+
+           1. A touch lands on a .region path. On touch, the browser IMPLICITLY
+              captures the pointer to the element that was hit.
+           2. The first pointermove crosses the threshold and pans once.
+           3. Any render — an AI turn fires one every 280-1300ms — replaces the
+              territory groups, so the node holding that implicit capture is
+              detached from the document.
+           4. Detaching a node that holds capture fires lostpointercapture.
+           5. end() ran, deleted the pointer from _pts, and every subsequent
+              pointermove hit the `!_pts.has(id)` guard and was discarded.
+
+         The finger never lifted. Nothing was cancelled. We simply stopped
+         listening, which is why moving slower or faster made no difference —
+         speed was never the variable. Losing capture only means events go back
+         to normal hit-testing and bubble to this same handler, so the correct
+         response is to forget our capture bookkeeping and carry on. */
+      wrap.addEventListener('lostpointercapture', e => {
+        if (c._held === e.pointerId) c._held = null;
+      });
 
       wrap.addEventListener('wheel', e => {
         e.preventDefault();
