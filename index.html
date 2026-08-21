@@ -5709,8 +5709,15 @@ const UI = {
 
         if (!c._anchor) return;
         const dx = e.clientX - c._anchor.x, dy = e.clientY - c._anchor.y;
-        /* a 3px wobble is a tap, not a pan */
-        if (c._mode !== 'pan' && Math.hypot(dx, dy) < 8) return;
+        /* Below this the touch is still a tap, not a pan — without SOME
+           threshold a finger that merely wobbles while tapping would drag the
+           board instead of selecting the territory underneath it. This is
+           also most of what reads as "a slight delay before scrolling
+           starts": the board is correctly not moving yet, because the game
+           cannot tell a drag from a tap until the finger has actually moved.
+           5px is close to the smallest gap that still reliably tells the two
+           apart — a real tap rarely drifts that far even on a phone. */
+        if (c._mode !== 'pan' && Math.hypot(dx, dy) < 5) return;
         if (c._mode !== 'pan') {
           c._mode = 'pan'; c._moved = true;
           c.begin();
@@ -5797,7 +5804,47 @@ const UI = {
       on('#cam-out', () => c.step(1 / 1.35));
       on('#cam-fit', () => c.reset());
 
-      addEventListener('resize', () => { c.stale(); c.paint(); });
+      /* If the viewport changes size WHILE a gesture is live, end the gesture
+         instead of continuing to trust stale geometry.
+
+         _rect is captured once at begin() and deliberately never re-measured
+         during a live gesture — that caching is what made pinch/pan smooth.
+         But it means the transform math runs against a box that can silently
+         stop matching reality: the commonest real-world trigger is a mobile
+         browser's address bar collapsing AS THE USER SCROLLS, which resizes
+         the viewport mid-touch. stale() already refuses to touch _rect while
+         live (on purpose, see its own comment), so a plain resize handler
+         does nothing useful mid-gesture — the cached box just keeps being
+         used, at the wrong size, until the finger lifts. committing here
+         ends the gesture cleanly on the CORRECT geometry it started with,
+         and the next gesture measures fresh. visualViewport is the more
+         reliable signal for this specific case on mobile; window resize is
+         the fallback for everything else (rotation, browser chrome, etc). */
+      const onViewportChange = () => {
+        /* Treat this exactly like every finger just lifted — because for the
+           gesture's purposes, it did: nothing is coming to move it further.
+           commit() alone only ends the CAMERA side (geometry, _live); it
+           does not know about pointer bookkeeping, since normally end()
+           already deleted the pointer before ever calling commit(). Calling
+           commit() here without ALSO doing what end()'s empty-_pts branch
+           does left _pts holding a phantom entry — which then silently
+           corrupted the NEXT gesture: a real two-finger pinch paired the
+           stale entry with only one real finger instead of the two that
+           actually landed, so zooming did nothing. */
+        if (c._live) {
+          release();
+          c.commit();
+          c._pts.clear();
+          c._mode = null; c._anchor = null; c._dist = 0; c._mid = null;
+          c._moved = false;
+        }
+        c.stale();
+        c.paint();
+      };
+      addEventListener('resize', onViewportChange);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', onViewportChange);
+      }
     }
   },
 
