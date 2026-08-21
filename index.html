@@ -652,7 +652,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 .carve       { pointer-events: none; }
 .unrest-mark { pointer-events: auto; cursor: help; }
 .world-light { pointer-events: none; }
-.land-tex { pointer-events: none; }
+.land-tex, .sea-tex { pointer-events: none; }
 .region-content { pointer-events: none; }
 .region-content .troop,
 .region-content .holding-mark,
@@ -1486,10 +1486,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   transform-origin: 0 0;
 }
 
-/* zoomed in, whole-board texture is paid for and not seen — you are looking at
-   one corner of it. Restored the moment the board returns to fit. */
-#map.is-zoomed .land-tex,
-#map.is-zoomed .sea-tex { display: none; }
+/* is-zoomed texture-hiding removed: it saved ~1-2ms on the commit paint and
+   cost real texture for as long as a player stayed zoomed in — most of real
+   play, not the rare case it assumed. renderMap()'s static/dynamic split
+   made the commit paint cheap by a much larger margin without that cost. */
 
 </style>
 </head>
@@ -4774,6 +4774,30 @@ const MapView = {
     });
   },
 
+  /* renderMap() used to replace the WHOLE svg.innerHTML on every call — every
+     tap, every AI action, every turn. Measured on a populated board: ~13-16ms
+     of JS alone, ~33-39ms once renderTop/renderHint/etc. are included, and
+     that is THIS machine; a phone will be slower. AI.step() calls this every
+     280-1300ms via UI.renderSoon() for as long as an AI is acting, on the
+     main thread, which is exactly why panning stuttered specifically during
+     AI turns — pointermove events queue up behind whatever renderMap() call
+     is running and land in a burst once it finishes.
+
+     None of that cost needed to be paid every time. mapDefs/layerVoid/
+     layerSea/layerShelf/layerLandmass/layerFrontiers/layerWorldLight and the
+     land-tex/coastline overlay depend on nothing but fixed map geometry and
+     each player's OWN colour — never on turn state — and carry every
+     feTurbulence filter on the board. Rebuilding them via innerHTML forces
+     the browser to re-rasterise those filters from scratch regardless of
+     whether their source markup changed, because a full innerHTML replace
+     discards and recreates the nodes. layerRelief(id) was already memoized
+     per territory, which is why that alone was not the bottleneck — the
+     bottleneck was throwing the terrain away and asking the browser to
+     recompute it, every render.
+
+     Built once per match into a persistent skeleton; only the two per-
+     territory groups (#territory-fills, #territory-content) are ever
+     replaced again, because those are the only things a turn can change. */
   renderMap() {
     const svg = $('#map');
     const ctx = {
@@ -4783,36 +4807,53 @@ const MapView = {
       targets: (UI.mode === 'march' && G.selected) ? UI.marchTargets(G.selected) : {}
     };
 
-    let out = MapView.mapDefs() + MapView.layerVoid() + MapView.layerSea() + MapView.layerShelf()
-            + MapView.layerLandmass();
+    if (!svg.querySelector('#territory-fills')) {
+      /* First render of this match. player colours are baked into mapDefs()
+         here, so a fresh Rules.newGame() (a fresh #map with no children) is
+         what naturally triggers a full rebuild — nothing else does. */
+      let statics = MapView.mapDefs() + MapView.layerVoid() + MapView.layerSea() + MapView.layerShelf()
+                  + MapView.layerLandmass();
 
-    /* Territories are drawn full-size and trimmed to the coastline, so the
-       ones on the rim end in bays and headlands instead of a ruler-straight
-       map edge. Adjacency is unaffected — it comes from the seeds. */
-    out += `<g clip-path="url(#clip_coast)">`;
-    out += MapView.layerFrontiers();
-    for (const id in REGIONS) out += MapView.layerTerritory(id, ctx);
-    out += MapView.layerWorldLight();
-    /* Two texture passes over the land: lit relief for physical tooth, then
-       a directional fibre for a paper-like grain. Both trimmed to the coast. */
-    out += `<rect class="land-tex" x="0" y="0" width="${MAP_W}" height="${MAP_H}"
-              filter="url(#landRelief)" opacity=".30"
-              style="mix-blend-mode:overlay" pointer-events="none"/>`;
-    out += `<use class="land-tex" href="#coastline" fill="url(#landFibre)"
-              style="mix-blend-mode:overlay" pointer-events="none"/>`;
-    out += `</g>`;
+      /* Territories are drawn full-size and trimmed to the coastline, so the
+         ones on the rim end in bays and headlands instead of a ruler-straight
+         map edge. Adjacency is unaffected — it comes from the seeds. The
+         fills and the overlay above them share this one clip, so both stay
+         inside a single <g clip-path>; only the fills group is ever rebuilt. */
+      statics += `<g clip-path="url(#clip_coast)">`;
+      statics += MapView.layerFrontiers();
+      statics += `<g id="territory-fills"></g>`;
+      statics += MapView.layerWorldLight();
+      /* Two texture passes over the land: lit relief for physical tooth, then
+         a directional fibre for a paper-like grain. Both trimmed to the coast. */
+      statics += `<rect class="land-tex" x="0" y="0" width="${MAP_W}" height="${MAP_H}"
+                filter="url(#landRelief)" opacity=".30"
+                style="mix-blend-mode:overlay" pointer-events="none"/>`;
+      statics += `<use class="land-tex" href="#coastline" fill="url(#landFibre)"
+                style="mix-blend-mode:overlay" pointer-events="none"/>`;
+      statics += `</g>`;
 
-    // the shoreline itself, drawn over everything so it reads as an edge
-    out += `<use href="#coastline" fill="none" stroke="#070910" stroke-opacity=".85"
-              stroke-width="2.6" pointer-events="none"/>`;
+      // the shoreline itself, drawn over everything so it reads as an edge
+      statics += `<use href="#coastline" fill="none" stroke="#070910" stroke-opacity=".85"
+                stroke-width="2.6" pointer-events="none"/>`;
 
-    // second pass: every territory's markers, above all terrain
-    for (const id in REGIONS) out += MapView.layerContent(id, ctx);
+      // second pass: every territory's markers, above all terrain
+      statics += `<g id="territory-content"></g>`;
 
-    svg.innerHTML = out;
-    svg.querySelectorAll('.region, .region-content').forEach(el => {
-      el.addEventListener('click', e => UI.clickRegion(el.dataset.region, e));
-    });
+      svg.innerHTML = statics;
+    }
+
+    let fills = '';
+    for (const id in REGIONS) fills += MapView.layerTerritory(id, ctx);
+    svg.querySelector('#territory-fills').innerHTML = fills;
+
+    let content = '';
+    for (const id in REGIONS) content += MapView.layerContent(id, ctx);
+    svg.querySelector('#territory-content').innerHTML = content;
+
+    /* Both groups were just replaced, so both need their click listeners
+       rebound — addEventListener on a fresh node is the only kind there is. */
+    svg.querySelectorAll('#territory-fills .region, #territory-content .region-content')
+       .forEach(el => el.addEventListener('click', e => UI.clickRegion(el.dataset.region, e)));
   },
 
   troopChip(unitId, colour) {
@@ -5114,7 +5155,21 @@ const UI = {
     UI.renderTop();
     UI.renderMap();
     UI.cam.wire();
-    UI.cam.apply();
+    /* apply() forces a synchronous getBoundingClientRect AND rewrites viewBox
+       — measured at 5-9ms, because rewriting viewBox makes the browser
+       re-rasterise the whole SVG, turbulence filters included, regardless of
+       which nodes actually changed. render() used to call this on EVERY
+       render — every tap, every AI action — even though the camera's k/cx/cy
+       had not moved at all. Five plain renders in a row produced five
+       viewBox writes for a camera that never once changed.
+
+       It only needs to run ONCE: the first render of a match, to replace the
+       hardcoded default viewBox in index.html with the camera's own computed
+       one. Every render after that, stale()+warm() below already handles "the
+       pane might have resized" — lazily, off the critical path, never with
+       fingers down — which is the only reason apply() would ever legitimately
+       need to re-fire outside an actual camera gesture. */
+    if (!UI.cam._painted) { UI.cam._painted = true; UI.cam.apply(); }
     UI.renderHint();
     /* renderHint can change the hint bar's height, which changes the map pane
        beneath it. Mark the cached board box stale and let warm() re-measure in
@@ -5326,10 +5381,13 @@ const UI = {
       svg.setAttribute('viewBox',
         (c.cx - v.w / 2).toFixed(2) + ' ' + (c.cy - v.h / 2).toFixed(2) + ' '
         + v.w.toFixed(2) + ' ' + v.h.toFixed(2));
-      /* Zoomed in, the two full-map noise layers cost far more than they give:
-         their texture is a whole-board effect and you are looking at one
-         corner. Dropping them makes the commit paint cheap. */
-      svg.classList.toggle('is-zoomed', c.k > 1.02);
+      /* Used to hide .land-tex/.sea-tex above k=1.02 to make the commit paint
+         cheaper. Measured: it saved ~1-2ms, and cost real texture on the board
+         for as long as a player stayed zoomed in at all — which is most of
+         actual play, not the rare exception it was written for, and it read
+         as the whole map greying. renderMap()'s own static/dynamic split
+         below made the commit paint cheap by a much larger margin than this
+         ever did, so the trade is no longer worth making at any zoom. */
       const fit = $('#cam-fit');
       if (fit) fit.hidden = c.k <= c.MIN + 0.01;
       c.warm();
