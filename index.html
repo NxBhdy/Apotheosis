@@ -55,6 +55,13 @@ html, body {
   font-family: var(--f-body);
   font-size: 15px;
   overflow: hidden;
+  /* Chrome/Safari draw a translucent grey box over whatever you tapped unless
+     told not to — the tapped element's own bounding box, flashed on for a few
+     hundred ms. On an SVG territory that reads as a shaded rectangle stamped
+     over the region, stacked on top of the game's own .selected glow. Every
+     tap target here already has its own feedback; the browser's default adds
+     noise on top of it rather than replacing it. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 button { font-family: inherit; font-size: inherit; cursor: pointer; }
@@ -5162,6 +5169,9 @@ const UI = {
     _rect: null,
     _raf: 0,
     _warmRaf: 0,
+    _lastAt: 0,              /* timeStamp of the last event heard for the
+                                current gesture — see the staleness check in
+                                wire()'s pointerdown handler */
 
     /* live-gesture transform, in SCREEN px relative to the committed view */
     _live: false,
@@ -5456,6 +5466,38 @@ const UI = {
            chasing. preventDefault on pointerdown is the documented way to
            decline the native gesture immediately rather than let it compete. */
         e.preventDefault();
+
+        /* SELF-HEALING.
+
+           A phantom pointer can never be detected by "_pts is empty" — that
+           is exactly the state an abandoned one prevents from ever
+           happening. A gesture ends here on pointerup/pointercancel/
+           lostpointercapture; if the OS drops all three for one finger (a
+           system gesture stealing the touch, an interrupted capture, the app
+           losing focus mid-pinch — none reproducible from a synthetic event
+           in this environment), that finger's entry sits in _pts forever,
+           because nothing is ever coming to remove it.
+
+           The signal that actually works is TIME. Two fingers of one real
+           pinch land within milliseconds of each other, and an ongoing
+           gesture keeps refreshing _lastAt on every move. So: a previously
+           unseen pointerId landing more than a quarter-second after the
+           gesture last made a sound is not finger two of anything — it is a
+           new, unrelated touch arriving on top of dead bookkeeping. Left
+           alone, that stale entry lets a plain tap get read as half of a
+           phantom pinch (ignored — "doesn't register"), or leaves capture
+           stuck on #map-wrap so a click meant to dismiss a popover's backdrop
+           never reaches it (stuck open — "the whole map gets shaded"). */
+        const now = e.timeStamp;
+        if (!c._pts.has(e.pointerId) && c._pts.size > 0 && (now - c._lastAt) > 250) {
+          if (c._live) c.commit();
+          if (c._held != null) { try { wrap.releasePointerCapture(c._held); } catch (err) {} }
+          c._pts.clear();
+          c._mode = null; c._anchor = null; c._dist = 0; c._mid = null;
+          c._moved = false; c._held = null;
+        }
+        c._lastAt = now;
+
         c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (c._pts.size === 1) {
           c._mode = null;
@@ -5474,6 +5516,7 @@ const UI = {
 
       wrap.addEventListener('pointermove', e => {
         if (!c._pts.has(e.pointerId)) return;
+        c._lastAt = e.timeStamp;     /* the gesture is alive; see staleness check above */
         c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
         if (c._mode === 'pinch') {
@@ -5532,6 +5575,13 @@ const UI = {
       };
       wrap.addEventListener('pointerup', end);
       wrap.addEventListener('pointercancel', end);
+      /* Restored: dropped in an earlier rewrite while the comment that
+         referenced it survived — the exact silent-drift trap rule 1c warns
+         about, just in prose instead of a regex. lostpointercapture fires
+         when the OS/browser revokes capture out from under us, which is NOT
+         guaranteed to also fire pointerup/pointercancel on every platform.
+         Routed through the same end() as a normal release. */
+      wrap.addEventListener('lostpointercapture', end);
 
       wrap.addEventListener('wheel', e => {
         e.preventDefault();
