@@ -65,7 +65,7 @@ html, body {
 }
 
 button { font-family: inherit; font-size: inherit; cursor: pointer; }
-button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--verdigris); outline-offset: 2px; }
 
 .hidden { display: none !important; }
 .screen { height: 100%; }
@@ -123,6 +123,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
 .seg button { background: var(--surface-2); color: var(--ink-mid); border: none; padding: .45rem 1rem; border-right: 1px solid var(--line); }
 .seg button:last-child { border-right: none; }
 .seg button.on { background: color-mix(in srgb, var(--bronze) 24%, var(--surface-2)); color: var(--ink); }
+
+.map-select {
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line);
+  padding: .45rem 1rem; border-radius: 2px; font-family: inherit; font-size: inherit;
+}
 
 .pick {
   display: grid; grid-template-columns: 1.5rem 9rem 1fr; gap: 1rem;
@@ -204,7 +209,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   /* explicit px, not rem — the root font here is 15px, so rem maths on a
      touch target silently undershoots the 44px minimum (rule from CLAUDE.md,
      paid for once already: 2.85rem computed to 42.75px and shipped). */
-  .seg.seat-type button, #player-count button, #assault-limit button, #setup-howto {
+  .seg.seat-type button, #player-count button, #assault-limit button, #setup-howto, #map-choice {
     min-height: 44px;
   }
   #setup-howto { margin: 0 0 1rem; font-size: .8rem; }
@@ -1524,6 +1529,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
       </div>
     </div>
 
+    <div class="setup-row">
+      <label class="setup-label" for="map-choice">Map</label>
+      <select id="map-choice" class="map-select"></select>
+      <span class="setup-note" id="map-blurb"></span>
+    </div>
+
     <div id="patron-picks"></div>
 
     <div class="setup-row" style="margin-top:1.6rem">
@@ -1962,7 +1973,7 @@ const MAP_PAD = 14;
 
 /* ---------- domains ---------- */
 
-const DOMAINS = {
+let DOMAINS = {
   aurenmark: { name: 'Aurenmark', tint: '#6f8bbd' },
   vaelspire: { name: 'Vaelspire', tint: '#a97fbd' },
   kethral:   { name: 'Kethral',   tint: '#8a8a94' },
@@ -1976,7 +1987,7 @@ const DOMAINS = {
    middle split into two smaller domains that are actually completable.
    Seeds are placed by hand so the shape of the map is deliberate. */
 
-const REGION_DEFS = [
+let REGION_DEFS = [
   // Aurenmark — north-west homeland
   { id: 'highcrown',    name: 'Highcrown',    x: 118, y: 108, domain: 'aurenmark', type: 'throne'   },
   { id: 'mereford',     name: 'Mereford',     x: 305, y:  96, domain: 'aurenmark', type: 'farmland' },
@@ -2143,8 +2154,8 @@ function roughenClosed(pts, levels, amp, decay, seed) {
    The whole ring is then roughened fractally and smoothed. Adjacency is
    untouched — it comes from the seeds, never from the drawn shape. */
 
-function continentPath() {
-  const seeds = REGION_DEFS.map(d => ({ x: d.x, y: d.y }));
+function continentPath(defs) {
+  const seeds = defs.map(d => ({ x: d.x, y: d.y }));
   const cx = seeds.reduce((a, p) => a + p.x, 0) / seeds.length;
   const cy = seeds.reduce((a, p) => a + p.y, 0) / seeds.length;
 
@@ -2279,9 +2290,12 @@ function polygonCentroid(pts) {
   return { x: cx / (6 * a), y: cy / (6 * a) };
 }
 
-const REGIONS = {};
-
-(function buildMap() {
+/* Builds the full REGIONS table (cells, borders, neighbours) for any
+   REGION_DEFS-shaped array. Pulled out of what was a one-shot IIFE closed
+   over the module-level REGION_DEFS, so a second map can be compiled the
+   same way without touching the default map's data or behaviour at all. */
+function buildMap(defs) {
+  const regions = {};
   const frame = [
     { x: MAP_PAD, y: MAP_PAD },
     { x: MAP_W - MAP_PAD, y: MAP_PAD },
@@ -2290,9 +2304,9 @@ const REGIONS = {};
   ];
 
   const raw = {};
-  for (const d of REGION_DEFS) {
+  for (const d of defs) {
     let cell = frame;
-    for (const o of REGION_DEFS) {
+    for (const o of defs) {
       if (o.id === d.id) continue;
       cell = clipToBisector(cell, d, o);
       if (cell.length < 3) break;
@@ -2304,9 +2318,9 @@ const REGIONS = {};
      an edge of one cell whose midpoint is equidistant from both seeds. */
   const EPS = 0.6;
   const neighbours = {};
-  for (const d of REGION_DEFS) neighbours[d.id] = new Set();
+  for (const d of defs) neighbours[d.id] = new Set();
 
-  for (const d of REGION_DEFS) {
+  for (const d of defs) {
     const cell = raw[d.id];
     for (let i = 0; i < cell.length; i++) {
       const P = cell[i], Q = cell[(i + 1) % cell.length];
@@ -2314,7 +2328,7 @@ const REGIONS = {};
       const edgeLen = Math.hypot(Q.x - P.x, Q.y - P.y);
       if (edgeLen < 4) continue;                   // ignore slivers
       const dSelf = Math.hypot(mx - d.x, my - d.y);
-      for (const o of REGION_DEFS) {
+      for (const o of defs) {
         if (o.id === d.id) continue;
         if (Math.abs(Math.hypot(mx - o.x, my - o.y) - dSelf) < EPS) {
           neighbours[d.id].add(o.id);
@@ -2327,7 +2341,7 @@ const REGIONS = {};
   /* Walk each cell's straight edges and swap in the shared fractal border
      for each one. Because both neighbours look up the same cached edge, the
      coastline they draw is the same curve and the seam is exact. */
-  for (const d of REGION_DEFS) {
+  for (const d of defs) {
     const cell = raw[d.id];
     const coast = [];
     for (let i = 0; i < cell.length; i++) {
@@ -2335,7 +2349,7 @@ const REGIONS = {};
       const seg = edgePoints(a, b);
       for (let k = 0; k < seg.length - 1; k++) coast.push(seg[k]);  // drop the shared endpoint
     }
-    REGIONS[d.id] = {
+    regions[d.id] = {
       ...d,
       poly: coast,                          // still a point list, for hit areas and the exporter
       d: smoothClosedPath(coast),           // the rendered outline
@@ -2350,17 +2364,161 @@ const REGIONS = {};
   }
 
   // every Port connects to every other Port — the sea lane network
-  const ports = REGION_DEFS.filter(d => d.type === 'port').map(d => d.id);
+  const ports = defs.filter(d => d.type === 'port').map(d => d.id);
   for (const a of ports) {
     for (const b of ports) {
-      if (a !== b && !REGIONS[a].neighbours.includes(b)) REGIONS[a].neighbours.push(b);
+      if (a !== b && !regions[a].neighbours.includes(b)) regions[a].neighbours.push(b);
     }
   }
-})();
 
-const CONTINENT = continentPath();
+  return regions;
+}
 
-const THRONES = REGION_DEFS.filter(d => d.type === 'throne').map(d => d.id);
+function thronesOf(defs) {
+  return defs.filter(d => d.type === 'throne').map(d => d.id);
+}
+
+let REGIONS = buildMap(REGION_DEFS);
+let CONTINENT = continentPath(REGION_DEFS);
+let THRONES = thronesOf(REGION_DEFS);
+
+;
+/* ===== js/map-tennessee.js ===== */
+/* ============================================================
+   APOTHEOSIS — the Tennessee map
+
+   A second, additive map. It reuses every geometry helper defined in
+   map.js (clipToBisector, buildMap, roughenClosed, smoothClosedPath, ...)
+   against a different REGION_DEFS/DOMAINS pair, so it can never drift from
+   how the default map is built or rendered — same rules, same renderer,
+   different ground.
+
+   Twenty real Tennessee cities and towns, grouped into four domains of
+   five, one each anchored on Nashville, Knoxville, Memphis and
+   Chattanooga. Positions are a true-relative-distance projection of each
+   place's real longitude/latitude (see tools/ for how this was derived),
+   so Memphis sits far west on the Mississippi, Nashville north-central,
+   Knoxville east, and Chattanooga south of Knoxville at the east end —
+   the same relative arrangement as the real state. The outer coastline is
+   a hand-placed approximation of Tennessee's actual outline (straight
+   south border, meandering Mississippi on the west, irregular Appalachian
+   border on the east) rather than the default map's hull-around-the-seeds
+   shape, so the silhouette itself reads as the state, not just a random
+   blob wearing Tennessee names.
+
+   Every domain carries exactly one of each of the five productive region
+   types — throne, farmland, forge, port, mine — so all four starts are
+   symmetric. No Shrine or Waste ground: those exist on the default map's
+   neutral contested domains, and this map has no neutral domain to put
+   them in. */
+
+const TN_DOMAINS = {
+  memphis:    { name: 'Memphis',    tint: '#4f7a94' },
+  nashville:  { name: 'Nashville',  tint: '#b3813f' },
+  chattanooga:{ name: 'Chattanooga',tint: '#4f8f5f' },
+  knoxville:  { name: 'Knoxville',  tint: '#7a83ad' }
+};
+
+const TN_REGION_DEFS = [
+  // Memphis — West Tennessee, the Mississippi River
+  { id: 'memphis',     name: 'Memphis',     x: 149.1, y: 590.1, domain: 'memphis',     type: 'throne'   },
+  { id: 'jackson',     name: 'Jackson',     x: 327.3, y: 508.4, domain: 'memphis',     type: 'forge'    },
+  { id: 'dyersburg',   name: 'Dyersburg',   x: 243.9, y: 433.8, domain: 'memphis',     type: 'farmland' },
+  { id: 'covington',   name: 'Covington',   x: 206.6, y: 515.5, domain: 'memphis',     type: 'port'     },
+  { id: 'brownsville', name: 'Brownsville', x: 262.6, y: 512.0, domain: 'memphis',     type: 'mine'     },
+
+  // Nashville — Middle Tennessee
+  { id: 'nashville',    name: 'Nashville',    x: 619.0, y: 410.7, domain: 'nashville', type: 'throne'   },
+  { id: 'murfreesboro', name: 'Murfreesboro', x: 675.0, y: 465.8, domain: 'nashville', type: 'forge'    },
+  { id: 'franklin',     name: 'Franklin',     x: 606.1, y: 451.6, domain: 'nashville', type: 'farmland' },
+  { id: 'clarksville',  name: 'Clarksville',  x: 535.6, y: 345.0, domain: 'nashville', type: 'port'     },
+  { id: 'columbia',     name: 'Columbia',     x: 581.6, y: 506.6, domain: 'nashville', type: 'mine'     },
+
+  // Chattanooga — southeastern Tennessee, the Tennessee River
+  { id: 'chattanooga', name: 'Chattanooga', x: 830.2, y: 607.9, domain: 'chattanooga', type: 'throne'   },
+  { id: 'cleveland',   name: 'Cleveland',   x: 892.0, y: 588.4, domain: 'chattanooga', type: 'farmland' },
+  { id: 'dayton',      name: 'Dayton',      x: 873.3, y: 529.7, domain: 'chattanooga', type: 'port'     },
+  { id: 'mcminnville', name: 'McMinnville', x: 764.1, y: 496.0, domain: 'chattanooga', type: 'forge'    },
+  { id: 'tullahoma',   name: 'Tullahoma',   x: 700.9, y: 552.8, domain: 'chattanooga', type: 'mine'     },
+
+  // Knoxville — East Tennessee, the Smokies
+  { id: 'knoxville',  name: 'Knoxville',  x: 1030.0, y: 446.3, domain: 'knoxville', type: 'throne'   },
+  { id: 'oakridge',   name: 'Oak Ridge',  x:  979.7, y: 437.4, domain: 'knoxville', type: 'forge'    },
+  { id: 'maryville',  name: 'Maryville',  x: 1022.8, y: 481.8, domain: 'knoxville', type: 'farmland' },
+  { id: 'gatlinburg', name: 'Gatlinburg', x: 1084.6, y: 490.7, domain: 'knoxville', type: 'mine'     },
+  { id: 'morristown', name: 'Morristown', x: 1119.1, y: 401.8, domain: 'knoxville', type: 'port'     }
+];
+
+/* Hand-placed approximation of Tennessee's real outline: a nearly straight
+   south border, a meandering west border along the Mississippi, an
+   irregular north border, and a wavy, mountainous east border with a
+   northeastward spur. roughenClosed (see map.js) adds the same fractal
+   texture the default map's coastline uses, so the two maps read as one
+   family, but the macro-shape here is fixed rather than derived from the
+   seeds — it has to be, since it is standing in for a real place. */
+const TN_BORDER_PTS = [
+  { x:  141.9, y: 670.1 }, { x:  371.8, y: 655.9 }, { x:  616.1, y: 659.4 },
+  { x:  830.2, y: 663.0 }, { x: 1032.9, y: 652.3 }, { x: 1234.0, y: 554.6 },
+  { x: 1190.9, y: 483.6 }, { x: 1262.8, y: 430.3 }, { x: 1205.3, y: 377.0 },
+  { x: 1147.8, y: 336.1 }, { x:  932.3, y: 293.5 }, { x:  688.0, y: 311.3 },
+  { x:  486.8, y: 289.9 }, { x:  300.0, y: 311.3 }, { x:  213.7, y: 332.6 },
+  { x:  177.8, y: 389.4 }, { x:  149.1, y: 448.0 }, { x:   91.6, y: 510.2 },
+  { x:  106.0, y: 563.5 }, { x:   77.2, y: 620.3 }
+];
+
+function tnContinentPath() {
+  let pts = roughenClosed(TN_BORDER_PTS, 4, 13, 0.55, 0x544e5a);
+  pts = pts.map(p => ({
+    x: Math.max(6, Math.min(MAP_W - 6, p.x)),
+    y: Math.max(6, Math.min(MAP_H - 6, p.y))
+  }));
+  return smoothClosedPath(pts);
+}
+
+const TN_REGIONS = buildMap(TN_REGION_DEFS);
+const TN_CONTINENT = tnContinentPath();
+const TN_THRONES = thronesOf(TN_REGION_DEFS);
+
+;
+/* ===== js/maps.js ===== */
+/* ============================================================
+   APOTHEOSIS — map registry
+
+   Ties a display name to each compiled map's REGION_DEFS/DOMAINS/REGIONS/
+   CONTINENT/THRONES, and swaps the live globals (declared `let` in
+   map.js) over to whichever one the player picks at setup. Everything
+   downstream — state.js, render-map.js, ui.js, ai.js, combat.js — reads
+   those same five names at call time, never at load time, so nothing
+   else needs to know a second map exists; activateMap() just has to run
+   before Rules.newGame() and before the first UI.render().
+   ============================================================ */
+
+const MAPS = {
+  default: {
+    name: 'Original',
+    blurb: 'Four homelands and a contested middle — the original board.',
+    defs: REGION_DEFS, domains: DOMAINS, regions: REGIONS,
+    continent: CONTINENT, thrones: THRONES
+  },
+  tennessee: {
+    name: 'Tennessee',
+    blurb: 'Nashville, Knoxville, Memphis and Chattanooga — twenty regions, no neutral ground.',
+    defs: TN_REGION_DEFS, domains: TN_DOMAINS, regions: TN_REGIONS,
+    continent: TN_CONTINENT, thrones: TN_THRONES
+  }
+};
+
+let ACTIVE_MAP = 'default';
+
+function activateMap(id) {
+  const m = MAPS[id] || MAPS.default;
+  ACTIVE_MAP = MAPS[id] ? id : 'default';
+  REGION_DEFS = m.defs;
+  DOMAINS = m.domains;
+  REGIONS = m.regions;
+  CONTINENT = m.continent;
+  THRONES = m.thrones;
+}
 
 ;
 /* ===== js/state.js ===== */
@@ -7589,6 +7747,19 @@ const UI = {
     });
   });
 
+  /* The map picker. Built from the MAPS registry (js/maps.js) rather than
+     hardcoded here, so a third map only ever needs adding to that registry. */
+  function drawMapChoice() {
+    const sel = $('#map-choice');
+    sel.innerHTML = Object.keys(MAPS).map(id =>
+      `<option value="${id}" ${id === ACTIVE_MAP ? 'selected' : ''}>${MAPS[id].name}</option>`).join('');
+    $('#map-blurb').textContent = MAPS[sel.value].blurb;
+  }
+  $('#map-choice').addEventListener('change', () => {
+    $('#map-blurb').textContent = MAPS[$('#map-choice').value].blurb;
+  });
+  drawMapChoice();
+
   $('#setup-howto').addEventListener('click', () => UI.openMenu());
 
   document.querySelectorAll('#assault-limit button').forEach(b => {
@@ -7606,6 +7777,7 @@ const UI = {
     AI.delay = SPEEDS[speedIdx].ms;
     seats.slice(0, count).forEach((s, i) => { if (s.type === 'ai') AI.seats[i] = s.ai; });
 
+    activateMap($('#map-choice').value);
     Rules.newGame(seats.slice(0, count).map((s, i) => ({ name: NAMES[i], patron: s.patron })));
 
     $('#setup').classList.add('hidden');
