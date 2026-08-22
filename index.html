@@ -112,7 +112,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   font-family: var(--f-display); font-size: clamp(2.6rem, 7vw, 4.2rem);
   letter-spacing: .05em; margin: .5rem 0 .6rem; font-weight: 600; line-height: 1;
 }
-.setup-blurb { color: var(--ink-mid); margin: 0 0 2rem; max-width: 34rem; font-family: var(--f-display); font-size: 1.05rem; }
+.setup-blurb { color: var(--ink-mid); margin: 0 0 1.1rem; max-width: 34rem; font-family: var(--f-display); font-size: 1.05rem; }
+#setup-howto { display: inline-block; margin: 0 0 1.8rem; font-size: .85rem; }
 .setup-row { display: flex; align-items: center; gap: 1.2rem; margin-bottom: 1.6rem; }
 .setup-label {
   font-family: var(--f-mono); font-size: .7rem; letter-spacing: .16em;
@@ -135,6 +136,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   padding: .4rem .7rem; border-radius: 2px; text-align: left; line-height: 1.25;
 }
 .patron-opt.on { border-color: var(--bronze); background: color-mix(in srgb, var(--bronze) 16%, var(--surface-2)); color: var(--ink); }
+/* the domain tag stays visible at every width — it's one short line and is
+   the only clue a phone player gets before tapping through to How to play,
+   now that .patron-opt small (the full strategy sentence) hides there */
+.patron-domain {
+  display: block; font-style: normal; font-family: var(--f-mono); font-size: .68rem;
+  letter-spacing: .04em; color: var(--bronze); margin-top: .1rem;
+}
+.patron-opt.on .patron-domain { color: var(--bronze); }
 .patron-opt small { display: block; font-size: .72rem; color: var(--ink-dim); }
 .patron-opt.on small { color: var(--ink-mid); }
 
@@ -195,9 +204,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
   /* explicit px, not rem — the root font here is 15px, so rem maths on a
      touch target silently undershoots the 44px minimum (rule from CLAUDE.md,
      paid for once already: 2.85rem computed to 42.75px and shipped). */
-  .seg.seat-type button, #player-count button, #assault-limit button {
+  .seg.seat-type button, #player-count button, #assault-limit button, #setup-howto {
     min-height: 44px;
   }
+  #setup-howto { margin: 0 0 1rem; font-size: .8rem; }
   .check { min-height: 44px; margin-top: .3rem; }
   #start.big { min-height: 50px; width: 100%; margin-top: .3rem; }
 }
@@ -1503,6 +1513,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
     <p class="setup-blurb">Four warlords, one contested world. Take ground, develop it, and become
       someone worth telling stories about.</p>
 
+    <button id="setup-howto" class="ghost" type="button">New here? See how gods, troops &amp; regions work</button>
+
     <div class="setup-row">
       <label class="setup-label">Warlords</label>
       <div class="seg" id="player-count">
@@ -1532,6 +1544,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--verdigris);
     <label class="check">
       <input type="checkbox" id="show-tutorial" checked>
       <span>Show the how-it-works walkthrough</span>
+    </label>
+    <label class="check">
+      <input type="checkbox" id="skip-reactions">
+      <span>Skip Reactions — go straight from one Turn to the next, with none of the mini-turns between</span>
     </label>
 
     <button id="start" class="primary big">Begin the war</button>
@@ -1707,7 +1723,7 @@ const UNITS = {
   caravaneer: {
     id: 'caravaneer', name: 'Caravaneers', cost: 4, raisedAt: ['farmland', 'port'],
     patron: 'ilthara', unlockLevel: 4,
-    rule: 'Generates 1 Tribute each Turn it survives.',
+    rule: 'Generates 1 Income each Round it survives.',
     flavour: 'An army that pays for itself is a rare thing.'
   },
   gatewarden: {
@@ -1728,6 +1744,7 @@ const PATRONS = {
     name: 'Vashtar',
     epithet: 'the Storm-Crown',
     domain: 'Storm · War',
+    flavour: 'He has never once waited for the weather to clear.',
     passive: 'Your hosts may march and attack in the same Turn.',
     elites: ['stormrider', 'thunderguard'],
     plays: 'Early aggression. Wants Ports and cheap hosts.',
@@ -1747,18 +1764,19 @@ const PATRONS = {
     name: 'Ilthara',
     epithet: 'of the Gilded Hearth',
     domain: 'Hearth · Trade',
-    passive: 'Holdings cost 2 less, and every Holding you own pays +1 Tribute.',
+    flavour: 'She has never lost a war she could instead purchase.',
+    passive: 'Holdings cost 2 less, and every Holding you own generates +1 Income.',
     elites: ['caravaneer', 'gatewarden'],
     plays: 'Turtle economy. Wants one compact Domain developed to the hilt.',
     boons: [
-      { id: 'coffers',   name: 'Deep Coffers',   text: '+1 Tribute per Holding each Turn.' },
+      { id: 'coffers',   name: 'Deep Coffers',   text: '+1 Income per Holding each Round.' },
       { id: 'masons',    name: 'Masons',         text: 'Upgrade one Holding free, once per Round.' },
-      { id: 'highroads', name: 'High Roads',     text: 'Every region you hold pays +1 Tribute.' },
+      { id: 'highroads', name: 'High Roads',     text: 'Every region you hold generates +1 Income.' },
       { id: 'granary',   name: 'Granary',        text: 'Levy cost nothing in Farmland you control.' },
       { id: 'fortified', name: 'Fortified',      text: '+1 defence die in any region with a tier-2 Holding or better.' },
       { id: 'tithe',     name: 'Tithe',          text: 'Gain 2 XP each Turn for every Shrine or Throne you hold.' },
       { id: 'unbroken',  name: 'Unbroken Walls', text: 'Your Holdings can never be destroyed below tier 1.' },
-      { id: 'caravan',   name: 'Caravan Rights', text: 'Outriders generate 1 Tribute each Turn.' }
+      { id: 'caravan',   name: 'Caravan Rights', text: 'Outriders generate 1 Income each Round.' }
     ]
   }
 };
@@ -1893,7 +1911,12 @@ let   MONUMENT_RATE = 2;    // Tribute per 1 XP — `let` so it can be A/B teste
    and the ground you take. A cap made turns feel rationed and matches drag,
    so it lives in Settings for players who want the slower game. */
 const ASSAULT_LIMIT_DEFAULT = 0;
-const SETTINGS = { assaultLimit: ASSAULT_LIMIT_DEFAULT };
+/* skipReactions removes every mini-turn between real Turns outright — an
+   experiment a player can opt into, not a balance recommendation. It makes
+   the Turn/Reaction asymmetry above worse, not better: a defender gets no
+   response window at all instead of one weak Reaction, so pair it with an
+   Assault limit if a blitz turns out to run away with it. */
+const SETTINGS = { assaultLimit: ASSAULT_LIMIT_DEFAULT, skipReactions: false };
 
 /* Cap on the flat bonus added to a side's highest die. Zealots scaling with
    Renown, doubled by Fury, plus a Champion could reach +8 on a six-sided
@@ -2698,7 +2721,10 @@ const Rules = {
     return list;
   },
 
-  raiseCost(pi, regionId, unitId) {
+  /* `skipFree` asks for the price ignoring the once-per-Turn free-Levy Boons —
+     the raise dialog uses it to price the 2nd+ Levy in the same batch, since
+     only the first one actually lands free. */
+  raiseCost(pi, regionId, unitId, skipFree) {
     const p = G.players[pi];
     const u = UNITS[unitId];
     const def = REGIONS[regionId];
@@ -2710,7 +2736,7 @@ const Rules = {
        unbounded army in their Throne for nothing. */
     let cost = u.cost;
     let freeUsed = false;
-    if (unitId === 'levy' && !p.freeLevyUsed) {
+    if (!skipFree && unitId === 'levy' && !p.freeLevyUsed) {
       if ((Rules.hasBoon(p, 'enmasse') && def.type === 'throne') ||
           (Rules.hasBoon(p, 'granary') && def.type === 'farmland')) {
         cost = 0;
@@ -2940,8 +2966,8 @@ const Rules = {
 
     if (Rules.hasBoon(p, 'reave')) p.tribute += 2;
 
-    /* Unrest — the brake on runaway conquest. Ground taken off a rival pays
-       no Tribute and cannot be developed until you have held it through one
+    /* Unrest — the brake on runaway conquest. Ground taken off a rival produces
+       no Income and cannot be developed until you have held it through one
        of your own Turns. Taking five regions in a Round now costs you a Round
        of their income, so a blitz has to be worth more than it earns. */
     if (prev !== null && prev !== pi) rs.unrest = 1;
@@ -3081,6 +3107,8 @@ const Rules = {
       }
       if (tithe) Rules.awardXP(q.index, tithe, 'Tithe');
     }
+
+    if (SETTINGS.skipReactions) return Rules.nextTurn();
 
     G.reactionQueue = G.players
       .map((q, i) => i)
@@ -4609,7 +4637,7 @@ const MapView = {
 
   partUnrest(rs, c) {
     if (!(rs.unrest > 0)) return '';
-    const tip = '<b>Restive</b><br>Freshly conquered. Pays no Tribute and cannot be developed '
+    const tip = '<b>Restive</b><br>Freshly conquered. Produces no Income and cannot be developed '
       + 'until you have held it through one of your own Turns.';
     return `<g class="unrest-mark" data-tip="${tip}" transform="translate(${c.x - 22},${c.y + 12})">
       <circle r="7" fill="rgba(10,12,18,.85)" stroke="#b0534f" stroke-width="1.4"/>
@@ -5966,7 +5994,7 @@ const UI = {
       + '<div class="pv-row"><span class="k">Raises</span><span class="v">'
          + esc(UI.raisableAt(id).join(', ') || 'nothing on-type — off-type costs double')
          + '</span></div>'
-      + (rs.unrest > 0 ? '<p class="pv-note blood">Restive — newly conquered. Pays no Tribute '
+      + (rs.unrest > 0 ? '<p class="pv-note blood">Restive — newly conquered. Produces no Income '
            + 'and cannot be developed until you hold it through one of your Turns.</p>' : '')
       + '<p class="pv-note">' + esc(t.note) + '</p>';
   },
@@ -6245,6 +6273,21 @@ const UI = {
      silhouette you are looking at on the board and the sentence explaining it
      are in the same place. */
   openMenu() {
+    const patrons = Object.keys(PATRONS).map(pid => {
+      const pt = PATRONS[pid];
+      const eliteNames = pt.elites.map(u => esc(UNITS[u].name)).join(', ');
+      const boonList = pt.boons.map(b => '<b>' + esc(b.name) + '</b> ' + esc(b.text)).join('<br>');
+      return '<div class="ref-item">'
+        + '<b>' + esc(pt.name) + ' <i>' + esc(pt.epithet) + '</i></b>'
+        + '<span>' + esc(pt.domain) + ' — ' + esc(pt.passive) + '<br>'
+        + '<i style="color:var(--ink-dim)">' + esc(pt.flavour) + '</i><br>'
+        + esc(pt.plays) + '<br>'
+        + '<b class="ref-raises">Elites</b> ' + eliteNames
+        + '</span>'
+        + '<p class="pv-note">' + boonList + '</p>'
+        + '</div>';
+    }).join('');
+
     const units = Object.keys(UNITS).map(u => {
       const U = UNITS[u];
       const owner = U.patron ? PATRONS[U.patron].name : null;
@@ -6264,7 +6307,10 @@ const UI = {
       const named = here.map(u => esc(UNITS[u].name)
         + (UNITS[u].patron ? ' <em class="ref-only">' + esc(PATRONS[UNITS[u].patron].name)
              + '</em>' : ''));
-      return '<div class="ref-item"><b>' + esc(REGION_TYPES[t].name) + ' <i>'
+      return '<div class="ref-item has-ico">'
+        + '<svg class="ref-ico" viewBox="-9 -8 18 16" width="17" height="15" aria-hidden="true"'
+        + ' fill="#c98f47" stroke="#c98f47" stroke-linecap="round">' + UI.glyph(t) + '</svg>'
+        + '<b>' + esc(REGION_TYPES[t].name) + ' <i>'
         + REGION_TYPES[t].income + ' income</i></b><span>'
         + esc(REGION_TYPES[t].note)
         + '<br><b class="ref-raises">Raises</b> '
@@ -6286,6 +6332,7 @@ const UI = {
         + 'highest — <b>ties go to the defender</b>. Tribute arrives every Turn and never '
         + 'caps. Renown is earned by playing, and losing battles still earns it — or it can '
         + 'be bought outright with a Monument.</p>'
+      + '<div class="pv-sec">Patrons</div><div class="ref-grid">' + patrons + '</div>'
       + '<div class="pv-sec">Hosts</div><div class="ref-grid">' + units + '</div>'
       + '<div class="pv-sec">Regions</div>'
       + '<p class="pv-note">Every region also raises ' + anywhere.map(u => esc(UNITS[u].name)).join(', ') + ', wherever you hold ground.</p>'
@@ -6343,7 +6390,7 @@ const UI = {
           ? `<b>${esc(REGIONS[id].name)}</b> is unclaimed — march a host in and it is yours for free.`
           : `<b>${esc(REGIONS[id].name)}</b> belongs to ${esc(G.players[rs.owner].name)}. Select one of <em>your</em> territories that touches it, then March / Attack.`;
       } else if (rs.unrest > 0) {
-        tip = `<b>${esc(REGIONS[id].name)}</b> is restive — freshly conquered ground pays no Tribute and cannot be built on until you hold it through one of your Turns.`;
+        tip = `<b>${esc(REGIONS[id].name)}</b> is restive — freshly conquered ground produces no Income and cannot be built on until you hold it through one of your Turns.`;
       } else if (Rules.hostCount(rs) <= 1) {
         tip = `Only one host here, and a host must always stay behind. <b>Raise more</b> before you can march out of it.`;
       } else if (Rules.canBuild(pi, id).ok && rs.holding === 0) {
@@ -6660,13 +6707,24 @@ const UI = {
        could not afford when it opened and never re-enabled it. */
     const meta = Rules.availableUnits(pi).map(u => {
       const rc = Rules.raiseCost(pi, regionId, u);
-      return { u: u, name: UNITS[u].name, rule: UNITS[u].rule, cost: rc.cost,
-               onType: rc.onType, hard: !!rc.needsHolding,
+      // only the first Levy in a Turn is ever free — price every one after
+      // that at the steady rate so the slider cannot promise more than the
+      // treasury actually covers
+      const steadyCost = rc.freeUsed ? Rules.raiseCost(pi, regionId, u, true).cost : rc.cost;
+      return { u: u, name: UNITS[u].name, rule: UNITS[u].rule, cost: rc.cost, steadyCost,
+               onType: rc.onType, hard: !!rc.needsHolding, freeUsed: rc.freeUsed,
                why: rc.needsHolding ? 'Off-type raising needs a Holding here.' : '',
                have: Rules.countUnit(rs, u) };
     });
 
-    const totalCost  = () => meta.reduce((a, m) => a + (order[m.u] || 0) * m.cost, 0);
+    // the first Levy in a batch is free under the right Boon; every one
+    // after it costs the steady rate — so cost is priced per-kind, not as a
+    // flat count * cost
+    const kindCost = (m, n) => {
+      if (n <= 0) return 0;
+      return m.freeUsed ? (n - 1) * m.steadyCost : n * m.cost;
+    };
+    const totalCost  = () => meta.reduce((a, m) => a + kindCost(m, order[m.u] || 0), 0);
     const totalHosts = () => meta.reduce((a, m) => a + (order[m.u] || 0), 0);
     let sel = Math.max(0, meta.findIndex(m => !m.hard));
 
@@ -6712,12 +6770,19 @@ const UI = {
         const ok     = card.querySelector('.st-ok');
         const kinds  = [...card.querySelectorAll('.rk')];
 
+        /* The true max count of this kind the treasury covers, computed FROM
+           ZERO against the budget left after every other kind's commitment —
+           NOT added on top of what's already committed here, which is what
+           let the slider run away to 20 on every drag: each tick raised
+           `want`, and `want` fed straight back into its own ceiling. */
         const capFor = i => {
           const m = meta[i];
           if (m.hard) return 0;
           const want = order[m.u] || 0;
-          const others = totalCost() - want * m.cost;
-          return Math.min(20, want + Math.max(0, Math.floor((p.tribute - others) / Math.max(1, m.cost))));
+          const others = totalCost() - kindCost(m, want);
+          const budget = Math.max(0, p.tribute - others);
+          if (!m.freeUsed) return Math.min(20, Math.floor(budget / Math.max(1, m.cost)));
+          return Math.min(20, 1 + Math.floor(budget / Math.max(1, m.steadyCost)));
         };
 
         const sync = () => {
@@ -6737,6 +6802,7 @@ const UI = {
           ruleEl.textContent = m.hard ? m.why : m.rule;
           ruleEl.classList.toggle('blocked', m.hard);
           noteEl.textContent = m.hard ? 'blocked'
+            : m.freeUsed ? 'first free, then ' + m.steadyCost + 't'
             : m.cost + 't each' + (m.onType ? '' : ' · double');
           noteEl.className = 'rz-note ' + (m.hard ? 'blocked' : m.onType ? 'on' : 'off');
 
@@ -7449,10 +7515,16 @@ const UI = {
     { type: 'ai',    patron: 'vashtar', ai: 'opportunist' }
   ];
 
+  /* Renamed one tier over, not just retimed: players reported the old
+     Normal (750ms) as fast and the old Slow (1300ms) as what they'd actually
+     call normal, so those two keep their timings and swap labels. A new,
+     genuinely slow tier — 2x the old Slow — takes the Slow name. speedIdx
+     stays at the middle index, so the default game speed is now what used
+     to be Slow. */
   const SPEEDS = [
-    { name: 'Slow',   ms: 1300 },
-    { name: 'Normal', ms: 750 },
-    { name: 'Fast',   ms: 280 }
+    { name: 'Slow',   ms: 2600 },
+    { name: 'Normal', ms: 1300 },
+    { name: 'Fast',   ms: 750 }
   ];
   let speedIdx = 1;
 
@@ -7471,7 +7543,7 @@ const UI = {
              ${PATRON_IDS.map(pid => {
                const pt = PATRONS[pid];
                return `<button class="patron-opt ${s.patron === pid ? 'on' : ''}" data-seat="${i}" data-patron="${pid}">
-                 ${pt.name} <small>${pt.plays}</small></button>`;
+                 ${pt.name} <em class="patron-domain">${pt.domain}</em><small>${pt.plays}</small></button>`;
              }).join('')}
            </span>`;
 
@@ -7517,6 +7589,8 @@ const UI = {
     });
   });
 
+  $('#setup-howto').addEventListener('click', () => UI.openMenu());
+
   document.querySelectorAll('#assault-limit button').forEach(b => {
     b.addEventListener('click', () => {
       document.querySelectorAll('#assault-limit button').forEach(x => x.classList.remove('on'));
@@ -7527,6 +7601,7 @@ const UI = {
 
   $('#start').addEventListener('click', () => {
     UI.privacy = $('#privacy').checked;
+    SETTINGS.skipReactions = $('#skip-reactions').checked;
     AI.seats = {};
     AI.delay = SPEEDS[speedIdx].ms;
     seats.slice(0, count).forEach((s, i) => { if (s.type === 'ai') AI.seats[i] = s.ai; });
