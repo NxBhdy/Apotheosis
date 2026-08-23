@@ -55,6 +55,10 @@ html, body {
   font-family: var(--f-body);
   font-size: 15px;
   overflow: hidden;
+  /* iOS Safari 16+ honours this and stops the rubber-band bounce outright.
+     Older iOS ignores it — the touchmove guard in main.js is what actually
+     covers those, since overflow:hidden alone does not stop WebKit's bounce. */
+  overscroll-behavior: none;
   /* Chrome/Safari draw a translucent grey box over whatever you tapped unless
      told not to — the tapped element's own bounding box, flashed on for a few
      hundred ms. On an SVG territory that reads as a shaded rectangle stamped
@@ -7905,6 +7909,24 @@ const UI = {
 
   drawSeats();
 })();
+
+/* iOS Safari's rubber-band bounce drags the whole page on a swipe near any
+   edge, even with `overflow: hidden` set — that CSS rule does not bind the
+   WebKit touch-scroll behaviour that produces it, only actual layout
+   overflow. overscroll-behavior (above, in style.css) covers iOS 16+; this
+   covers everything else, the same way the map's own pinch/pan handlers
+   already scope their own preventDefault to exactly what needs it.
+
+   Blocks touchmove everywhere EXCEPT inside something that is actually
+   meant to scroll, and except the map itself, which owns its own gesture
+   handling in UI.cam and must not be second-guessed here. */
+document.addEventListener('touchmove', e => {
+  if (e.touches.length > 1) return;               // pinch — the map's own handler decides
+  if (e.target.closest(
+    '.pv-body, .st-info, .rz-kinds, .log, .setup-card, #modal, #pass-card, #map-wrap'
+  )) return;
+  e.preventDefault();
+}, { passive: false });
 
 </script>
 </body>
