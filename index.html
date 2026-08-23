@@ -5614,16 +5614,55 @@ const UI = {
       return { w: w, h: w / A, r: r };
     },
 
-    fillK() {
+    /* The active map's true content bounds, in board-space — from region
+       seed positions plus a margin approximating how far the coastline
+       extends beyond them, NOT a live DOM measurement. getBBox() on a
+       freshly rendered SVG path is exactly the class of thing that passes
+       in Chromium and is unreliable on real WebKit (see rule 1e's
+       <use>-in-clipPath for the same lesson in a different corner of this
+       renderer, and rule 9 in CLAUDE.md for this one) — data the game
+       already holds is immune to that regardless of browser. */
+    contentBounds() {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const id in REGIONS) {
+        const p = REGIONS[id].centre;
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      const mx = Math.max(80, (maxX - minX) * 0.12);
+      const my = Math.max(80, (maxY - minY) * 0.12);
+      return { x: minX - mx, y: minY - my, width: (maxX - minX) + 2 * mx, height: (maxY - minY) + 2 * my };
+    },
+
+    /* The zoom that fills the current pane's HEIGHT with `h` board-units —
+       matching the principle the hand-picked 2.72 default already
+       established for the original map: fill height, let width need
+       panning. Pass a content height to fit the board's own shape, or
+       MAP_H to fit the shared canvas (see minK below). */
+    fillK(h) {
       const r = UI.cam.rect();
       if (!r) return 2.7;
       const A = r.width / r.height;
-      return Math.max(MAP_W, MAP_H * A) / (MAP_H * A);
+      return Math.max(MAP_W, MAP_H * A) / (h * A);
+    },
+
+    /* The lowest k that keeps the viewBox inside the CANVAS on every axis.
+       Below this, on a portrait pane, the viewBox extends past where
+       anything is drawn at all — not even the sea rect, which only covers
+       the canvas — showing raw page background. This used to be the
+       hardcoded literal MIN (1), which is only actually safe on a
+       landscape pane; on a portrait phone "zoom all the way out" was never
+       safe, and both the fit-to-board button and repeated taps on zoom-out
+       walked straight into it. */
+    minK() {
+      return Math.max(UI.cam.MIN, UI.cam.fillK(MAP_H));
     },
 
     clampNow() {
       const c = UI.cam;
-      c.k = Math.max(c.MIN, Math.min(c.MAX, c.k));
+      c.k = Math.max(c.minK(), Math.min(c.MAX, c.k));
       const v = c.view();
       if (!v) return null;
       c.cx = v.w >= MAP_W ? MAP_W / 2 : Math.max(v.w / 2, Math.min(MAP_W - v.w / 2, c.cx));
@@ -5654,37 +5693,27 @@ const UI = {
          below made the commit paint cheap by a much larger margin than this
          ever did, so the trade is no longer worth making at any zoom. */
       const fit = $('#cam-fit');
-      if (fit) fit.hidden = c.k <= c.MIN + 0.01;
+      if (fit) fit.hidden = c.k <= c.minK() + 0.01;
       c.warm();
     },
 
-    /* First call only: pick a starting zoom instead of opening on MIN (the
-       whole-CANVAS, most-zoomed-out view). The first version of this fit to
-       MAP_W/MAP_H — the shared 1340x960 canvas both maps are authored
-       against — which is correct for the default map (a compact landmass
-       that roughly fills that canvas) and WRONG for Tennessee, a long,
-       short shape that only occupies the canvas's middle band. Fitting to
-       the canvas left Tennessee small in a sea of dead space above and
-       below — the exact "small map" complaint this was meant to fix, just
-       moved to the additive map. Fit to the ACTIVE map's own rendered
-       content bounds instead, via #coastline's real getBBox() — exact, and
-       correct for whatever shape the current map turns out to have, not
-       just the one this was tested against last time. Still clamped into
-       [MIN, MAX]: an extremely elongated map can hit MAX without fully
-       fitting its long axis, same as the original map already requires
-       some panning to see beyond a portrait screen's width at its own
-       default zoom — that is expected, not a bug, and the camera already
-       supports it. */
+    /* First call only: pick a starting zoom instead of opening on the
+       canvas-safe minimum. Fits the ACTIVE map's own content bounds
+       (contentBounds() above), not the shared canvas — a long, short map
+       like Tennessee only occupies the canvas's middle band, so fitting to
+       the canvas left it small in a sea of dead space above and below.
+       Still clamped into [minK(), MAX]: an extremely elongated map can hit
+       MAX without fully fitting its long axis, same as the original map
+       already requires some panning to see beyond a portrait screen's
+       width at its own default zoom — that is expected, not a bug, and
+       the camera already supports it. */
     _defaultSet: false,
     apply() {
       const c = UI.cam;
       if (!c._defaultSet) {
         c._defaultSet = true;
         const r = c.rect();
-        const coast = document.getElementById('coastline');
-        if (r && r.width && r.height && coast) {
-          const A = r.width / r.height;
-          const bb = coast.getBBox();
+        if (r && r.width && r.height) {
           /* Fit CONTENT HEIGHT, not "whichever dimension avoids cropping
              either one" — the latter barely zoomed in at all for Tennessee
              (a wide, short shape: its own width is already most of the
@@ -5693,11 +5722,9 @@ const UI = {
              default for the original map fills height and accepts that
              width needs panning on a portrait screen — matching that
              principle here, rather than inventing a different one, is what
-             actually fixes it. An extremely elongated map can still clamp
-             at MAX without fully fitting its long axis; that is the same
-             expected tradeoff, not a new problem. */
-          const fillK = Math.max(MAP_W, MAP_H * A) / (bb.height * A);
-          c.k  = Math.max(c.MIN, Math.min(c.MAX, fillK));
+             actually fixes it. */
+          const bb = c.contentBounds();
+          c.k  = Math.max(c.minK(), Math.min(c.MAX, c.fillK(bb.height)));
           c.cx = bb.x + bb.width / 2;
           c.cy = bb.y + bb.height / 2;
         }
@@ -5747,7 +5774,7 @@ const UI = {
       const v = c.view();
       if (!v || !isFinite(factor) || factor <= 0) return;
       const k0 = c.k;
-      const k1 = Math.max(c.MIN, Math.min(c.MAX, k0 * factor));
+      const k1 = Math.max(c.minK(), Math.min(c.MAX, k0 * factor));
       if (k1 === k0) return;
       const mx = (c.cx - v.w / 2) + ((clientX - v.r.left) / v.r.width)  * v.w;
       const my = (c.cy - v.h / 2) + ((clientY - v.r.top)  / v.r.height) * v.h;
@@ -5816,7 +5843,7 @@ const UI = {
       const r = c._rect;
       if (!r) return;
       const kNow = c._base.k * c._gs;
-      const kNew = Math.max(c.MIN, Math.min(c.MAX, kNow * f));
+      const kNew = Math.max(c.minK(), Math.min(c.MAX, kNow * f));
       const ff = kNew / kNow;
       if (ff === 1) return;
       const ax = clientX - r.left, ay = clientY - r.top;
@@ -5875,9 +5902,23 @@ const UI = {
       if (MapView._deferred) { MapView._deferred = false; MapView.renderMap(); }
     },
 
+    /* "Fit to board" — zoom out as far as safely possible (minK(), never
+       the literal MIN, which is not actually safe on a portrait pane — see
+       minK's own comment) and centre on the map's own content, not the
+       canvas. This used to hardcode k:1 / canvas-centre unconditionally,
+       which is exactly the state rule 9 in CLAUDE.md is about: on a
+       portrait phone that shows the viewBox extending past the canvas on
+       every axis, revealing raw page background, not sea. Any player who
+       tapped this button after the zoom-default fix landed in it directly,
+       because zooming in from the new default (which this button becomes
+       visible for) is exactly when someone reaches for "show me
+       everything." */
     reset() {
       const c = UI.cam;
-      c.k = 1; c.cx = MAP_W / 2; c.cy = MAP_H / 2;
+      const bb = c.contentBounds();
+      c.k  = c.minK();
+      c.cx = bb.x + bb.width / 2;
+      c.cy = bb.y + bb.height / 2;
       c.paint();
     },
 
