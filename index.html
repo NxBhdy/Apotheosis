@@ -509,17 +509,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .costcalc b { color: var(--bronze); }
 .costcalc .minus { color: var(--verdigris); }
 
-/* dice */
-.dice-row { display: flex; align-items: center; gap: .8rem; margin: .5rem 0; flex-wrap: wrap; }
-.dice-label { font-family: var(--f-mono); font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); width: 5rem; }
-.die {
-  width: 2.1rem; height: 2.1rem; display: grid; place-items: center;
-  border: 1px solid var(--line); background: var(--surface-2);
-  font-family: var(--f-mono); font-size: 1.05rem; font-weight: 700;
-}
-.die.win { border-color: var(--verdigris); color: var(--verdigris); }
-.die.lose { border-color: var(--blood); color: #e0a09d; opacity: .75; }
-.die.boosted { border-color: var(--bronze); color: var(--bronze); }
+/* The old .die/.dice-row/.dice-label set is gone with the number-in-a-box
+   dice it styled — the combat dialog now draws real pip faces (.die-f) and
+   pairs them in columns; see the exchange block further down. */
 .notes { font-size: .78rem; color: var(--ink-dim); margin-top: .3rem; }
 .tally { display: flex; gap: 1.4rem; margin-top: 1rem; font-size: .88rem; }
 .tally b { font-family: var(--f-mono); color: var(--bronze); }
@@ -574,9 +566,46 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   text-align: left; border: 1px solid var(--line); background: var(--surface-2);
   padding: .75rem .85rem; color: var(--ink); border-radius: 2px;
 }
-.boon-card:hover { border-color: var(--verdigris); background: var(--surface-3); }
+.boon-card:hover { background: var(--surface-3); }
 .boon-card b { display: block; margin-bottom: .2rem; }
 .boon-card span { color: var(--ink-mid); font-size: .87rem; }
+
+/* The two paths have to be told apart at REST. They used to differ only on
+   :hover — which does not exist on the primary target device — so on a
+   phone every card in the most important decision in the game looked
+   identical, and which column you were in was the only clue. The path's
+   colour now rides on the card's own edge and title. */
+.boon-card { border-left-width: 3px; }
+.boon-card.bless { border-left-color: var(--bronze); }
+.boon-card.bless b { color: var(--bronze); }
+.boon-card.perk  { border-left-color: var(--verdigris); }
+.boon-card.perk  b { color: var(--verdigris); }
+
+/* the level-up moment: a badge instead of a paragraph */
+.lvl-head {
+  display: grid; grid-template-columns: auto 1fr; gap: .85rem;
+  align-items: start; margin-bottom: .85rem;
+}
+.lvl-badge {
+  width: 62px; height: 62px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 2px solid var(--bronze);
+  background: radial-gradient(circle at 50% 34%,
+              color-mix(in srgb, var(--bronze) 24%, transparent), transparent 72%);
+  box-shadow: var(--elev-1, 0 2px 8px rgba(0,0,0,.4));
+}
+.lvl-badge b {
+  font-family: var(--f-mono); font-size: 1.55rem; line-height: 1;
+  color: var(--bronze); font-weight: 700;
+}
+.lvl-badge span {
+  font-family: var(--f-mono); font-size: .46rem; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--ink-dim); margin-top: .12rem;
+}
+#modal .lvl-say h2 { margin: .12rem 0 .3rem; }
+#modal .lvl-say p  { margin: 0; font-size: var(--t-small); line-height: 1.45; }
+.c-bless { color: var(--bronze); }
+.c-perk  { color: var(--verdigris); }
 
 /* toll clock */
 .clock {
@@ -627,17 +656,111 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .rn-sub { display: block; font-family: var(--f-mono); font-size: .66rem; color: var(--ink-dim); }
 .troop-chip { vertical-align: -2px; }
 
-/* combat: compact, off to the side, with live orders of battle */
+/* combat: compact, off to the side */
 #modal.combat { width: min(30rem, 100%); margin-left: auto; margin-right: 2rem; }
-.ob { display: grid; grid-template-columns: 1fr auto 1fr; gap: .6rem; align-items: start; margin: .7rem 0; }
-.ob-side { display: flex; flex-direction: column; gap: .3rem; }
-.ob-side.def { align-items: flex-end; }
-.ob-name { font-family: var(--f-mono); font-size: .62rem; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-dim); }
-.ob-unit { display: flex; align-items: center; gap: .3rem; font-size: .78rem; color: var(--ink-mid); }
-.ob-side.def .ob-unit { flex-direction: row-reverse; }
-.ob-unit b { font-family: var(--f-mono); color: var(--ink); }
-.ob-vs { font-family: var(--f-display); color: var(--ink-dim); align-self: center; }
-.ob-total { font-family: var(--f-mono); font-size: 1.3rem; color: var(--bronze); }
+
+/* ---- versus header ---- */
+.vs {
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: .5rem;
+  align-items: start; margin: .5rem 0 .9rem;
+}
+.vs-side {
+  display: flex; flex-direction: column; gap: .22rem; min-width: 0;
+  border-top: 2px solid var(--c); padding-top: .4rem;
+}
+.vs-side.def { align-items: flex-end; text-align: right; }
+.vs-role {
+  font-family: var(--f-mono); font-size: .58rem; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--ink-dim);
+}
+.vs-name {
+  font-family: var(--f-display); font-size: 1rem; font-weight: 600;
+  color: var(--c); line-height: 1.1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.vs-units { display: flex; flex-wrap: wrap; gap: .25rem .4rem; margin-top: .1rem; }
+.vs-side.def .vs-units { justify-content: flex-end; }
+.vs-u { display: inline-flex; align-items: center; gap: .18rem; }
+.vs-u b { font-family: var(--f-mono); font-size: .72rem; color: var(--ink-mid); font-weight: 700; }
+.vs-none { color: var(--ink-dim); font-size: .8rem; }
+.vs-mid { display: flex; flex-direction: column; align-items: center; gap: .05rem; padding-top: .35rem; }
+.vs-n { font-family: var(--f-mono); font-size: 1.15rem; font-weight: 700; line-height: 1.05; }
+.vs-x {
+  font-family: var(--f-mono); font-size: .55rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-dim); line-height: 1;
+}
+
+/* ---- the exchange: one column per die pairing ---- */
+.xch { margin: .2rem 0 .2rem; }
+.xch-pre { font-size: var(--t-small); color: var(--ink-mid); }
+.xch-pairs {
+  display: flex; gap: .5rem; justify-content: center; align-items: stretch;
+  flex-wrap: wrap;
+}
+.xp {
+  display: flex; flex-direction: column; align-items: center; gap: .3rem;
+  padding: .45rem .4rem; border: 1px solid var(--line-soft); border-radius: 4px;
+  background: var(--surface-2); min-width: 4.1rem;
+}
+.xp.a-won { border-color: color-mix(in srgb, var(--verdigris) 55%, transparent); }
+.xp.d-won { border-color: color-mix(in srgb, var(--blood) 55%, transparent); }
+/* An unopposed die still ROLLED — it just had nothing to beat. Dimming it
+   to .55 made it read as disabled or broken rather than as "this is the
+   third die the defender could not answer", which is the whole reason
+   three-against-two is worth something. */
+.xp.unopposed { border-style: dashed; background: transparent; }
+
+.xd { position: relative; line-height: 0; }
+.die-f { width: 38px; height: 38px; display: block; }
+.die-f rect { fill: #f0ece2; stroke: rgba(8,10,16,.55); stroke-width: 3; }
+.xd-empty {
+  width: 38px; height: 38px; display: grid; place-items: center;
+  color: var(--ink-dim); font-family: var(--f-mono); line-height: 1;
+}
+/* the army's contribution, kept visibly separate from the roll itself */
+.xb {
+  position: absolute; top: -5px; right: -7px;
+  font-family: var(--f-mono); font-style: normal; font-size: .58rem; font-weight: 700;
+  background: var(--bronze); color: #17120a;
+  border-radius: 7px; padding: 0 .22rem; line-height: 14px; min-width: 14px;
+  text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+
+.xm { display: flex; flex-direction: column; align-items: center; gap: .12rem; line-height: 1; }
+.xm-v { font-family: var(--f-mono); font-size: .84rem; font-weight: 700; color: var(--ink-mid); }
+/* a triangle pointing at whichever side took this pairing */
+.xm-arrow { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; }
+.a-won .xm-arrow { border-bottom: 7px solid var(--verdigris); }
+.d-won .xm-arrow { border-top: 7px solid var(--blood); }
+.xm-tie {
+  font-family: var(--f-mono); font-size: .5rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--blood); margin-top: .05rem;
+}
+.a-won .xm-v:first-child { color: var(--verdigris); }
+.d-won .xm-v:last-child  { color: #e0a09d; }
+.xm-note {
+  font-family: var(--f-mono); font-size: .5rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-dim); text-align: center;
+}
+
+.xch-notes { display: flex; flex-direction: column; gap: .12rem; margin-top: .55rem; }
+.xn { font-size: .72rem; color: var(--ink-dim); }
+.xn.atk { color: color-mix(in srgb, var(--verdigris) 70%, var(--ink-dim)); }
+.xn.def { color: color-mix(in srgb, var(--blood) 55%, var(--ink-dim)); text-align: right; }
+
+/* the outcome — the loudest thing after the dice themselves */
+.xo {
+  display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .7rem;
+  padding-top: .6rem; border-top: 1px solid var(--line-soft);
+}
+.xo-i { display: flex; flex-direction: column; gap: .1rem; }
+.xo-i:last-child { text-align: right; }
+.xo-i em {
+  font-style: normal; font-family: var(--f-mono); font-size: .56rem;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim);
+}
+.xo-i b { font-family: var(--f-mono); font-size: 1.05rem; color: var(--ink-dim); font-weight: 700; }
+.xo-i.hit b { color: var(--blood); }
 
 /* claimed Blessings and Champion Perks — a running record you can re-read
    later in the match, which is when you have forgotten what you took */
@@ -1511,7 +1634,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
    rest, so the single commit paint on release is cheap too.
    ============================================================ */
 
-#map-wrap { overflow: hidden; }        /* the transformed board is clipped */
+#map-wrap {
+  overflow: hidden;                    /* the transformed board is clipped */
+  /* Deep ocean, matching the OUTERMOST stop of the #sea radial gradient in
+     render-map.js. The wrap had no background of its own, so every pixel the
+     board did not cover showed --ground (#12141c) — near-black. That is what
+     turned a stranded gesture transform into the reported "black screen":
+     the bug was the stuck transform, but the reason it read as catastrophic
+     rather than as a slightly mispositioned board was this colour. The
+     gesture bug is fixed at its source in ui.js; this makes the whole class
+     of "board does not cover the pane" failures land on ocean instead of a
+     void, including any future one. Keep these two values in step. */
+  background: #1e4b6b;
+}
 
 /* The board is promoted to its own compositor layer ONCE, here, rather than at
    the start of every gesture. Doing it per-gesture meant the browser had to
@@ -5392,6 +5527,29 @@ const UI = {
      call sites working */
   renderMap()                  { MapView.renderMap(); },
   paintSelection()             { MapView.paintSelection(); },
+  /* A real d6 face. Numbers in boxes read as data; pips read as dice, and
+     the combat dialog is the one place in the game that should feel like
+     something is at stake. Only ever called with a raw 1-6 roll — army
+     bonuses ride beside the face as their own chip rather than being added
+     into it, because a "9" cannot be drawn as pips and, more importantly,
+     conflating the two hid which part of a win the player actually earned
+     from their army composition. */
+  dieFace(n, colour) {
+    const P = {
+      1: [[50, 50]],
+      2: [[30, 30], [70, 70]],
+      3: [[30, 30], [50, 50], [70, 70]],
+      4: [[30, 30], [70, 30], [30, 70], [70, 70]],
+      5: [[30, 30], [70, 30], [50, 50], [30, 70], [70, 70]],
+      6: [[30, 26], [70, 26], [30, 50], [70, 50], [30, 74], [70, 74]]
+    }[Math.max(1, Math.min(6, n | 0))] || [];
+    return '<svg class="die-f" viewBox="0 0 100 100" aria-hidden="true">'
+      + '<rect x="3" y="3" width="94" height="94" rx="16"/>'
+      + P.map(p => '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="9.5" fill="'
+          + colour + '"/>').join('')
+      + '</svg>';
+  },
+
   troopShape(u, c)             { return MapView.troopShape(u, c); },
   troopChip(u, c)              { return MapView.troopChip(u, c); },
   holdingShape(t)              { return MapView.holdingShape(t); },
@@ -5420,6 +5578,15 @@ const UI = {
     UI.renderTop();
     UI.renderMap();
     UI.cam.wire();
+    /* Last line of defence against a stranded gesture transform. If no
+       fingers are down, #map must not be carrying a translate/scale — that
+       is the state that paints a black band beside the board. Cheap: a
+       string compare on a style property, and it runs only when the board
+       was already being rebuilt. */
+    if (!UI.cam._live && !UI.cam._pts.size) {
+      const svgEl = $('#map');
+      if (svgEl && svgEl.style.transform) svgEl.style.transform = '';
+    }
     /* apply() forces a synchronous getBoundingClientRect AND rewrites viewBox
        — measured at 5-9ms, because rewriting viewBox makes the browser
        re-rasterise the whole SVG, turbulence filters included, regardless of
@@ -5802,7 +5969,17 @@ const UI = {
       if (c._live) return;
       const svg = $('#map');
       if (!svg) return;
-      const r = c.rect();          /* already warm; see warm() above */
+      /* Measure FRESH at the start of every gesture rather than trusting the
+         cache. The cache is what keeps a pinch smooth once it is running, and
+         that is preserved — it is only this one read that must not be stale.
+         A cached box that no longer matches reality (the pane resized while
+         a popover opened, the browser chrome collapsed, the hint bar changed
+         height) makes every transform in clampLive/gZoom wrong by that
+         factor, which is how the board ends up scaled to a small rectangle
+         adrift in the middle of the pane. One getBoundingClientRect per
+         gesture, not per frame. */
+      c.stale();
+      const r = c.rect();
       const v = c.clampNow();
       if (!r || !v) return;
       c._base = { x: c.cx - v.w / 2, y: c.cy - v.h / 2, w: v.w, h: v.h, k: c.k };
@@ -5902,6 +6079,66 @@ const UI = {
       if (MapView._deferred) { MapView._deferred = false; MapView.renderMap(); }
     },
 
+    /* ---- the single recovery path ----
+
+       Force-end a gesture from ANY state and leave nothing behind, whether
+       or not the pointer bookkeeping still makes sense. This exists because
+       the live transform is the one piece of camera state that is visible
+       on screen while it is wrong: `pushTransform` writes a translate+scale
+       onto #map itself, and #map-wrap is `overflow:hidden` with no
+       background of its own, so a transform that is never cleared shows the
+       page ground colour in whatever area the board no longer covers. That
+       is precisely the reported bug — a hard vertical black band beside the
+       map (translate stuck), or the board shrunk to a small rectangle
+       adrift in black (scale stuck).
+
+       Reaching that state did not require anything exotic. `pointerup` and
+       `pointercancel` were bound to #map-wrap ONLY, and pointer capture is
+       dropped routinely: `lostpointercapture` fires every time a render
+       replaces the territory nodes mid-drag, which on a 4-player game is
+       every AI action. Uncaptured, a finger that lifts anywhere outside the
+       map — the hint bar, the top bar, past the bottom edge of the screen —
+       delivers its pointerup to a different element, `end()` never runs,
+       and `_live` stays true with the transform still applied. Nothing
+       recovered it until the next multi-finger touch happened to trip the
+       staleness check in pointerdown.
+
+       Called from: window-level pointerup/pointercancel (so a lift anywhere
+       ends it), a watchdog (so a lost event cannot strand it), page-hide
+       and blur (so backgrounding cannot), and defensively from render(). */
+    heal() {
+      const c = UI.cam;
+      const wrap = $('#map-wrap');
+      if (c._held != null && wrap) {
+        const id = c._held;
+        c._held = null;
+        try { wrap.releasePointerCapture(id); } catch (err) {}
+      }
+      c._held = null;
+      if (c._live) c.commit();
+      /* commit() clears the transform only when it runs. If _live was
+         already false but a transform somehow survived (a rAF that landed
+         after commit, a torn-down gesture), clear it unconditionally —
+         this is the line that guarantees the black band cannot persist. */
+      const svg = $('#map');
+      if (svg && svg.style.transform) svg.style.transform = '';
+      if (c._traf) { cancelAnimationFrame(c._traf); c._traf = 0; }
+      c._pts.clear();
+      c._mode = null; c._anchor = null; c._dist = 0; c._mid = null;
+      c._moved = false; c._gs = 1; c._tx = 0; c._ty = 0; c._base = null;
+      c.armWatchdog(false);
+    },
+
+    /* A gesture that has gone quiet for this long is over, whatever the
+       event stream claims. Refreshed on every pointer event, so it only
+       ever fires when events genuinely stopped arriving. */
+    _wd: 0,
+    armWatchdog(on) {
+      const c = UI.cam;
+      if (c._wd) { clearTimeout(c._wd); c._wd = 0; }
+      if (on) c._wd = setTimeout(() => { c._wd = 0; if (c._live || c._pts.size) c.heal(); }, 1200);
+    },
+
     /* "Fit to board" — zoom out as far as safely possible (minK(), never
        the literal MIN, which is not actually safe on a portrait pane — see
        minK's own comment) and centre on the map's own content, not the
@@ -5999,13 +6236,10 @@ const UI = {
            never reaches it (stuck open — "the whole map gets shaded"). */
         const now = e.timeStamp;
         if (!c._pts.has(e.pointerId) && c._pts.size > 0 && (now - c._lastAt) > 250) {
-          if (c._live) c.commit();
-          if (c._held != null) { try { wrap.releasePointerCapture(c._held); } catch (err) {} }
-          c._pts.clear();
-          c._mode = null; c._anchor = null; c._dist = 0; c._mid = null;
-          c._moved = false; c._held = null;
+          c.heal();                  /* one recovery path, not a second copy */
         }
         c._lastAt = now;
+        c.armWatchdog(true);
 
         c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (c._pts.size === 1) {
@@ -6026,6 +6260,7 @@ const UI = {
       wrap.addEventListener('pointermove', e => {
         if (!c._pts.has(e.pointerId)) return;
         c._lastAt = e.timeStamp;     /* the gesture is alive; see staleness check above */
+        c.armWatchdog(true);
         c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
         if (c._mode === 'pinch') {
@@ -6064,7 +6299,17 @@ const UI = {
       });
 
       const end = e => {
-        if (!c._pts.delete(e.pointerId)) return;
+        if (!c._pts.delete(e.pointerId)) {
+          /* Not a pointer we were tracking. That does NOT mean there is
+             nothing to finish: the staleness check above can clear _pts
+             while a gesture is still live, and an uncaptured pointer can
+             deliver its up event somewhere we never saw the down. If no
+             tracked fingers remain but the gesture is still live, the
+             transform is on screen with nothing coming to clear it. */
+          if (!c._pts.size && c._live) c.heal();
+          return;
+        }
+        c.armWatchdog(c._pts.size > 0);
 
         if (c._pts.size === 1) {
           /* THE LIFT JUMP. The anchor held where the FIRST finger landed, so
@@ -6089,8 +6334,25 @@ const UI = {
           c._moved = false;
         }
       };
-      wrap.addEventListener('pointerup', end);
-      wrap.addEventListener('pointercancel', end);
+      /* Bound to the WINDOW, not to #map-wrap.
+
+         Pointer capture is dropped routinely (see lostpointercapture
+         below), and an uncaptured pointer delivers its up/cancel to
+         whatever element is under the finger. A drag that ends over the
+         hint bar, the top bar, a popover, or past the edge of the screen
+         therefore never reached a wrap-bound listener — the gesture stayed
+         live and its transform stayed painted. At the window, in the
+         capture phase, every lift is seen no matter where it happens.
+         `end` already ignores pointer ids it does not know about. */
+      addEventListener('pointerup', end, true);
+      addEventListener('pointercancel', end, true);
+
+      /* Backgrounding the tab, switching apps, or an OS-level interruption
+         mid-drag delivers no pointer event at all on some platforms. */
+      addEventListener('blur', () => c.heal());
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') c.heal();
+      });
 
       /* lostpointercapture must NOT end the gesture. This was mine, added in
          an earlier pass on the reasoning that losing capture means the OS took
@@ -7273,43 +7535,107 @@ const UI = {
     const forceLeft = Object.values(c.force).reduce((a, b) => a + b, 0);
     const defLeft = Rules.hostCount(G.regions[c.target]);
 
-    const dieRow = (label, raw, adj, pairs, isAtk) => {
-      const cells = raw.map((v, i) => {
-        const shown = adj[i];
-        const cls = ['die'];
-        if (shown !== v) cls.push('boosted');
-        if (pairs[i]) cls.push(pairs[i].attackerWins === isAtk ? 'win' : 'lose');
-        return `<div class="${cls.join(' ')}">${shown}</div>`;
-      }).join('');
-      return `<div class="dice-row"><span class="dice-label">${label}</span>${cells}</div>`;
-    };
-
-    const body = r ? `
-      ${dieRow('Attack', r.atk, r.atkAdj, r.pairs, true)}
-      <div class="notes">${esc(r.ap.notes.join(' · ') || 'no modifiers')}</div>
-      ${dieRow('Defence', r.def, r.defAdj, r.pairs, false)}
-      <div class="notes">${esc(r.dp.notes.join(' · ') || 'no modifiers')}</div>
-      <div class="tally">
-        <span>Attacker lost <b>${r.atkLoss}</b></span>
-        <span>Defender lost <b>${r.defLoss}</b></span>
-      </div>` : `<p>Ties go to the defender. Composition bends the odds before the dice land.</p>`;
-
-    /* Live order of battle: both sides' actual pieces with counts, updating
-       as hosts fall, so you can watch the fight rather than read totals. */
-    const sideList = (hosts, colour, cls) => {
-      const ks = Object.keys(hosts || {}).filter(u => hosts[u] > 0);
-      return `<div class="ob-side ${cls}">` + (ks.length
-        ? ks.map(u => `<span class="ob-unit">${UI.troopChip(u, colour)}<b>${hosts[u]}</b> ${esc(UNITS[u].name)}</span>`).join('')
-        : '<span class="ob-unit">—</span>') + `</div>`;
-    };
     const atkColour = G.players[c.attacker].colour.hex;
     const defColour = c.defender === null ? '#8b8b96' : G.players[c.defender].colour.hex;
-    const orderOfBattle = `
-      <div class="ob">
-        ${sideList(c.force, atkColour, 'atk')}
-        <span class="ob-vs">vs</span>
-        ${sideList(G.regions[c.target].hosts, defColour, 'def')}
+
+    /* ---- the versus header ----
+       Each side's name, its live strength, and its actual pieces, under a
+       rule in its own colour. This replaces a plain "<name> vs <name>" h2
+       plus a separate order-of-battle block: same information, one band,
+       and whose side you are looking at is carried by colour rather than
+       by reading position. */
+    const chips = (hosts, colour) => {
+      const ks = Object.keys(hosts || {}).filter(u => hosts[u] > 0);
+      return ks.length
+        ? ks.map(u => `<span class="vs-u">${UI.troopChip(u, colour)}<b>${hosts[u]}</b></span>`).join('')
+        : '<span class="vs-u vs-none">—</span>';
+    };
+    const versus = `
+      <div class="vs">
+        <div class="vs-side" style="--c:${atkColour}">
+          <span class="vs-role">Attacking</span>
+          <span class="vs-name">${esc(atkName)}</span>
+          <span class="vs-units">${chips(c.force, atkColour)}</span>
+        </div>
+        <div class="vs-mid">
+          <span class="vs-n" style="color:${atkColour}">${forceLeft}</span>
+          <span class="vs-x">vs</span>
+          <span class="vs-n" style="color:${defColour}">${defLeft}</span>
+        </div>
+        <div class="vs-side def" style="--c:${defColour}">
+          <span class="vs-role">Holding</span>
+          <span class="vs-name">${esc(defName)}</span>
+          <span class="vs-units">${chips(G.regions[c.target].hosts, defColour)}</span>
+        </div>
       </div>`;
+
+    /* ---- the exchange ----
+       Dice were two horizontal rows of numbers, with the pairing implied by
+       index position and nothing on screen saying so. The single most
+       important rule in the game — highest against highest, ties to the
+       defender — was invisible unless you already knew it.
+
+       Now each PAIR is its own column: attacker's die above, defender's
+       below, the two adjusted totals and an arrow pointing at the winner
+       between them. The raw d6 is drawn as real pips and any army bonus
+       rides as a separate chip, so "what I rolled" and "what my army adds"
+       stop being one conflated number. Attacker dice with no opposing die
+       get a column too, marked unopposed — that is what makes three dice
+       against two visibly worth something. */
+    const exchange = r ? (() => {
+      const nPairs = r.pairs.length;
+      const col = i => {
+        const paired = i < nPairs;
+        const aRaw = r.atk[i], aAdj = r.atkAdj[i], aB = aAdj - aRaw;
+        const won = paired && r.pairs[i].attackerWins;
+        let cls = 'xp' + (paired ? (won ? ' a-won' : ' d-won') : ' unopposed');
+        if (!paired) {
+          return `<div class="${cls}">
+            <div class="xd">${UI.dieFace(aRaw, atkColour)}${aB ? `<i class="xb">+${aB}</i>` : ''}</div>
+            <div class="xm"><span class="xm-note">unopposed</span></div>
+            <div class="xd xd-empty">—</div></div>`;
+        }
+        const dRaw = r.def[i], dAdj = r.defAdj[i], dB = dAdj - dRaw;
+        /* A tie is the rule players forget, and it is invisible otherwise:
+           two equal numbers with an arrow pointing at the defender looks
+           like a mistake unless something says why. */
+        const tied = aAdj === dAdj;
+        if (tied) cls += ' tied';
+        return `<div class="${cls}">
+          <div class="xd">${UI.dieFace(aRaw, atkColour)}${aB ? `<i class="xb">+${aB}</i>` : ''}</div>
+          <div class="xm">
+            <span class="xm-v">${aAdj}</span>
+            <span class="xm-arrow" aria-hidden="true"></span>
+            <span class="xm-v">${dAdj}</span>
+            ${tied ? '<span class="xm-tie">tie</span>' : ''}
+          </div>
+          <div class="xd">${UI.dieFace(dRaw, defColour)}${dB ? `<i class="xb">+${dB}</i>` : ''}</div>
+        </div>`;
+      };
+      const cols = r.atk.map((_, i) => col(i)).join('');
+      /* defenceProfile announces "Shieldwall" when a Phalanx is present and
+         exchange() adds "Shieldwall absorbs a hit" when it actually fires,
+         so both land in the same list and read as a stutter. Drop any note
+         that another note already contains. */
+      const tidy = ns => ns.filter(n => !ns.some(o => o !== n && o.indexOf(n) === 0));
+      const aN = tidy(r.ap.notes), dN = tidy(r.dp.notes);
+      const mods = [
+        aN.length ? `<span class="xn atk">${esc(aN.join(' · '))}</span>` : '',
+        dN.length ? `<span class="xn def">${esc(dN.join(' · '))}</span>` : ''
+      ].filter(Boolean).join('');
+      return `
+        <div class="xch">
+          <div class="xch-pairs">${cols}</div>
+          ${mods ? `<div class="xch-notes">${mods}</div>` : ''}
+          <div class="xo">
+            <span class="xo-i ${r.atkLoss ? 'hit' : ''}">
+              <em>Attacker</em><b>${r.atkLoss ? '−' + r.atkLoss : 'held'}</b></span>
+            <span class="xo-i ${r.defLoss ? 'hit' : ''}">
+              <em>Defender</em><b>${r.defLoss ? '−' + r.defLoss : 'held'}</b></span>
+          </div>
+        </div>`;
+    })() : `<p class="xch-pre">Attacker rolls up to three dice, defender up to two.
+             Highest against highest — <b>ties go to the defender</b>.</p>`;
 
     const watching = AI.isAI(c.attacker);
     let actions;
@@ -7325,9 +7651,8 @@ const UI = {
 
     UI.modal(`
       <div class="eyebrow">Assault on ${esc(REGIONS[c.target].name)}</div>
-      <h2>${esc(atkName)} vs ${esc(defName)}</h2>
-      ${orderOfBattle}
-      ${body}
+      ${versus}
+      ${exchange}
       <div class="modal-actions">${actions}</div>`, 'combat');
 
     const on = (s, f) => { const b = $(s); if (b) b.addEventListener('click', f); };
@@ -7470,12 +7795,22 @@ const UI = {
     const card = (b, kind) => `<button class="boon-card ${kind}" data-boon="${b.id}">
       <b>${esc(b.name)}</b><span>${esc(b.text)}</span></button>`;
 
+    /* This is a permanent, irreversible choice and it used to open with a
+       two-line headline over a five-line paragraph — on a phone the player
+       scrolled past a wall of teaching prose before seeing a single option.
+       The rule that matters ("one, not both") is now one line beside a
+       badge carrying the new Renown level, so the decision is on screen
+       immediately and the level-up reads as an event rather than a form. */
     UI.modal(`
-      <div class="eyebrow">Renown ${p.level} · ${esc(tierFor(p.level))}</div>
-      <h2>Strengthen your realm, or your Champion</h2>
-      <p>${esc(p.name)} — you may take <b>one</b>. A Blessing improves your empire and armies
-         forever; a Perk makes your Champion deadlier. You cannot have both, so every level is
-         a choice about what kind of warlord you are.</p>
+      <div class="lvl-head">
+        <div class="lvl-badge"><b>${p.level}</b><span>Renown</span></div>
+        <div class="lvl-say">
+          <div class="eyebrow">${esc(tierFor(p.level))}</div>
+          <h2>Take one</h2>
+          <p>A <b class="c-bless">Blessing</b> serves your realm for the rest of the war.
+             A <b class="c-perk">Perk</b> sharpens your Champion alone. Never both.</p>
+        </div>
+      </div>
       ${unlock ? `<div class="tier-unlock">Renown ${p.level} also grants: <b>${esc(unlock.text)}</b></div>` : ''}
       <div class="choice-cols">
         <div class="choice-col">
