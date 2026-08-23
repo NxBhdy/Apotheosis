@@ -1427,10 +1427,22 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 /* the amount rail — kept, per preference, over a value carousel: one drag
    reaches 20 Levy where a carousel would be a long scrub */
+.rz-slide { position: relative; }
 .r2-count {
   -webkit-appearance: none; appearance: none;
   width: 100%; height: 44px; margin: 0; background: none; cursor: pointer;
 }
+/* RISK-style stops: a tick per unit under the rail so a drag has somewhere
+   to aim for, rather than a bare track with no sense of scale. Sits just
+   under the 6px track, clear of the 44px touch box above it. */
+.rz-ticks { position: relative; height: 8px; margin-top: -16px; pointer-events: none; }
+.rz-ticks i {
+  position: absolute; top: 0; width: 2px; height: 5px; border-radius: 1px;
+  background: var(--surface-3); transform: translateX(-1px);
+}
+.rz-ticks i.on   { background: var(--bronze); }
+.rz-ticks i.end  { height: 8px; background: var(--ink-dim); }
+.rz-ticks i.end.on { background: var(--bronze); }
 .r2-count::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--surface-3); }
 .r2-count::-moz-range-track { height: 6px; border-radius: 3px; background: var(--surface-3); }
 .r2-count::-webkit-slider-thumb {
@@ -2393,24 +2405,33 @@ let THRONES = thronesOf(REGION_DEFS);
    how the default map is built or rendered — same rules, same renderer,
    different ground.
 
-   Twenty real Tennessee cities and towns, grouped into four domains of
-   five, one each anchored on Nashville, Knoxville, Memphis and
+   Twenty-four real Tennessee cities and towns, grouped into four domains
+   of six, one each anchored on Nashville, Knoxville, Memphis and
    Chattanooga. Positions are a true-relative-distance projection of each
-   place's real longitude/latitude (see tools/ for how this was derived),
-   so Memphis sits far west on the Mississippi, Nashville north-central,
+   place's real longitude/latitude — an equirectangular fit anchored at
+   Memphis (35.1495N 90.0490W -> 149.1,590.1), 143.72px per degree of
+   longitude and 177.29px per degree of latitude, solved from and verified
+   against the original four throne coordinates to within a pixel — so
+   Memphis sits far west on the Mississippi, Nashville north-central,
    Knoxville east, and Chattanooga south of Knoxville at the east end —
-   the same relative arrangement as the real state. The outer coastline is
-   a hand-placed approximation of Tennessee's actual outline (straight
-   south border, meandering Mississippi on the west, irregular Appalachian
-   border on the east) rather than the default map's hull-around-the-seeds
-   shape, so the silhouette itself reads as the state, not just a random
-   blob wearing Tennessee names.
+   the same relative arrangement as the real state. The outer border is a
+   hand-placed approximation of Tennessee's actual outline (straight south
+   border, meandering Mississippi on the west, irregular Appalachian
+   border on the east), roughened GENTLY — see tnContinentPath below — so
+   it reads as a real political border with a little hand-drawn character,
+   not the jagged fantasy coastline the default map's amplitude produces
+   on a state that has no coast at all.
 
-   Every domain carries exactly one of each of the five productive region
-   types — throne, farmland, forge, port, mine — so all four starts are
-   symmetric. No Shrine or Waste ground: those exist on the default map's
-   neutral contested domains, and this map has no neutral domain to put
-   them in. */
+   Every domain carries exactly one of each of six region types — throne,
+   farmland, forge, port, mine, shrine — so all four starts stay symmetric.
+   The four Shrines (added after the original twenty) were placed to close
+   the biggest gaps in the original spacing, not just for flavour: Jackson
+   sat almost alone in the wide gap between the Memphis and Nashville
+   clusters and its Voronoi cell sprawled to fill it, bordering Nashville-
+   domain ground 200+px away. Savannah splits that gap in the Memphis
+   domain; the other three fill smaller gaps toward Nashville, Chattanooga
+   and Knoxville. No Waste ground: that exists on the default map's neutral
+   contested domain, and this map has no neutral domain to put it in. */
 
 const TN_DOMAINS = {
   memphis:    { name: 'Memphis',    tint: '#4f7a94' },
@@ -2426,6 +2447,7 @@ const TN_REGION_DEFS = [
   { id: 'dyersburg',   name: 'Dyersburg',   x: 243.9, y: 433.8, domain: 'memphis',     type: 'farmland' },
   { id: 'covington',   name: 'Covington',   x: 206.6, y: 515.5, domain: 'memphis',     type: 'port'     },
   { id: 'brownsville', name: 'Brownsville', x: 262.6, y: 512.0, domain: 'memphis',     type: 'mine'     },
+  { id: 'savannah',    name: 'Savannah',    x: 408.6, y: 576.5, domain: 'memphis',     type: 'shrine'   },
 
   // Nashville — Middle Tennessee
   { id: 'nashville',    name: 'Nashville',    x: 619.0, y: 410.7, domain: 'nashville', type: 'throne'   },
@@ -2433,6 +2455,7 @@ const TN_REGION_DEFS = [
   { id: 'franklin',     name: 'Franklin',     x: 606.1, y: 451.6, domain: 'nashville', type: 'farmland' },
   { id: 'clarksville',  name: 'Clarksville',  x: 535.6, y: 345.0, domain: 'nashville', type: 'port'     },
   { id: 'columbia',     name: 'Columbia',     x: 581.6, y: 506.6, domain: 'nashville', type: 'mine'     },
+  { id: 'lawrenceburg', name: 'Lawrenceburg', x: 539.8, y: 574.0, domain: 'nashville', type: 'shrine'   },
 
   // Chattanooga — southeastern Tennessee, the Tennessee River
   { id: 'chattanooga', name: 'Chattanooga', x: 830.2, y: 607.9, domain: 'chattanooga', type: 'throne'   },
@@ -2440,13 +2463,15 @@ const TN_REGION_DEFS = [
   { id: 'dayton',      name: 'Dayton',      x: 873.3, y: 529.7, domain: 'chattanooga', type: 'port'     },
   { id: 'mcminnville', name: 'McMinnville', x: 764.1, y: 496.0, domain: 'chattanooga', type: 'forge'    },
   { id: 'tullahoma',   name: 'Tullahoma',   x: 700.9, y: 552.8, domain: 'chattanooga', type: 'mine'     },
+  { id: 'athens',      name: 'Athens',      x: 932.4, y: 537.7, domain: 'chattanooga', type: 'shrine'   },
 
   // Knoxville — East Tennessee, the Smokies
   { id: 'knoxville',  name: 'Knoxville',  x: 1030.0, y: 446.3, domain: 'knoxville', type: 'throne'   },
   { id: 'oakridge',   name: 'Oak Ridge',  x:  979.7, y: 437.4, domain: 'knoxville', type: 'forge'    },
   { id: 'maryville',  name: 'Maryville',  x: 1022.8, y: 481.8, domain: 'knoxville', type: 'farmland' },
   { id: 'gatlinburg', name: 'Gatlinburg', x: 1084.6, y: 490.7, domain: 'knoxville', type: 'mine'     },
-  { id: 'morristown', name: 'Morristown', x: 1119.1, y: 401.8, domain: 'knoxville', type: 'port'     }
+  { id: 'morristown', name: 'Morristown', x: 1119.1, y: 401.8, domain: 'knoxville', type: 'port'     },
+  { id: 'vonore',     name: 'Vonore',     x:  984.0, y: 511.5, domain: 'knoxville', type: 'shrine'   }
 ];
 
 /* Hand-placed approximation of Tennessee's real outline: a nearly straight
@@ -2467,7 +2492,15 @@ const TN_BORDER_PTS = [
 ];
 
 function tnContinentPath() {
-  let pts = roughenClosed(TN_BORDER_PTS, 4, 13, 0.55, 0x544e5a);
+  /* 4 levels at amp 13 is the default map's fantasy-coastline treatment,
+     just at half amplitude — right for the fold fix in
+     [[project_tennessee_map]], but it was never reconsidered for a state
+     with no coast at all. 4 levels quadruples the point count (20 -> 320)
+     and the high-frequency component from the later, small-amplitude
+     levels is what actually reads as "jagged coastline" rather than a
+     surveyed political border. Fewer levels, gentler amplitude: hand-drawn
+     character without the crinkle. */
+  let pts = roughenClosed(TN_BORDER_PTS, 2, 9, 0.55, 0x544e5a);
   pts = pts.map(p => ({
     x: Math.max(6, Math.min(MAP_W - 6, p.x)),
     y: Math.max(6, Math.min(MAP_H - 6, p.y))
@@ -2502,7 +2535,7 @@ const MAPS = {
   },
   tennessee: {
     name: 'Tennessee',
-    blurb: 'Nashville, Knoxville, Memphis and Chattanooga — twenty regions, no neutral ground.',
+    blurb: 'Nashville, Knoxville, Memphis and Chattanooga — twenty-four regions, no neutral ground.',
     defs: TN_REGION_DEFS, domains: TN_DOMAINS, regions: TN_REGIONS,
     continent: TN_CONTINENT, thrones: TN_THRONES
   }
@@ -3087,9 +3120,13 @@ const Rules = {
   march(pi, from, to, stack, opts) {
     const p = G.players[pi];
     if (G.regions[from].owner !== pi) return { ok: false, why: 'Not your region.' };
-    const remaining = Rules.hostCount(G.regions[from]) -
-      Object.values(stack).reduce((a, b) => a + b, 0);
-    if (remaining < 1) return { ok: false, why: 'You must leave at least one host behind.' };
+    /* Only enforced when hosts are actually being sent — a Champion moving
+       alone leaves the garrison exactly as it was, empty or not, and must
+       never be trapped by a rule about troops it isn't taking anywhere. */
+    if (stackSize(stack) > 0) {
+      const remaining = Rules.hostCount(G.regions[from]) - stackSize(stack);
+      if (remaining < 1) return { ok: false, why: 'You must leave at least one host behind.' };
+    }
 
     const paths = Rules.reachable(pi, from, stack);
     const path = paths[to];
@@ -4030,14 +4067,25 @@ const AI = {
     /* --- monuments: convert a dead treasury into Renown ---
        This is what finally stops the builder finishing on a pile of unspent
        Tribute. Once Holdings are maxed and upkeep caps the army, legend is
-       the only thing left worth buying. */
+       the only thing left worth buying.
+
+       The score used to cap at 38 (8 + min(30, ...)), which sounded like a
+       lot until measurement showed 'raise' routinely scoring 40-57 late
+       game — Monument could not win even a routine troop purchase, let
+       alone a good one, no matter the hoard size. Worse, raise only spends
+       one unit's cost per action while income arrives in a lump every
+       Round, so the trickle never caught up: a Magnate was seen sitting on
+       96 Tribute, still choosing raise at score 51 over Monument capped at
+       38. A drain's urgency should scale with the size of what it is
+       draining — uncapped fixes that directly, verified against the same
+       seed (see CLAUDE.md for the before/after numbers). */
     {
       const mon = Rules.canMonument(pi);
       if (mon.ok) {
         const idle = p.tribute - P.reserve - 12;
         if (idle >= MONUMENT_MIN) {
           options.push({ kind: 'monument', amount: p.tribute - P.reserve,
-                         score: 8 + Math.min(30, idle * 0.5) });
+                         score: 8 + idle * 0.5 });
         }
       }
     }
@@ -6280,10 +6328,10 @@ const UI = {
       aria: 'Confirm Holding',
       body: '<div class="pv-row"><span class="k">Cost</span><span class="v">'
           + esc(UI.costTitle(build)) + '</span></div>'
-        + '<div class="pv-row"><span class="k">Treasury</span><span class="v">'
-          + p.tribute + ' Tribute, ' + (p.tribute - build.cost) + ' after</span></div>'
-        + '<div class="pv-row"><span class="k">Gains</span><span class="v">+'
-          + HOLDING_INCOME[tier - 1] + ' income each Round'
+        + '<div class="pv-row"><span class="k">Tribute</span><span class="v">'
+          + p.tribute + ' &rarr; ' + (p.tribute - build.cost) + '</span></div>'
+        + '<div class="pv-row"><span class="k">Income</span><span class="v">+'
+          + HOLDING_INCOME[tier - 1] + ' each Round'
           + (tier >= 2 ? ', +1 defence die' : '') + '</span></div>'
         + '<div class="pv-foot">'
         + '<button class="ghost" type="button" data-x="no">Not yet</button>'
@@ -6291,7 +6339,7 @@ const UI = {
       wire: card => {
         card.querySelector('[data-x="no"]').addEventListener('click', UI.pv.close);
         card.querySelector('[data-x="yes"]').addEventListener('click',
-          UI.pv.commit(() => { Rules.buildHolding(pi, id); UI.spendAction(); }));
+          UI.pv.commit(() => { Rules.buildHolding(pi, id); UI.afterRegionAction(id); }));
       }
     });
   },
@@ -6658,6 +6706,26 @@ const UI = {
     UI.render();
   },
 
+  /* Raise, Build, Monument and a peaceful March each open their own dialog
+     OVER the region strip; committing used to close straight to the bare
+     board, so taking a second action on the same region meant tapping it
+     again. This reopens that region's strip afterward — but only when it is
+     still this player's action to take. A Reaction's single action, or the
+     last action of a Turn, can hand play to someone else inside
+     spendAction() itself (privacy screen, AI turn, Reaction queue moving
+     on), and reopening a strip for a player no longer acting would show
+     stale, wrong-owner controls over whatever comes next. */
+  afterRegionAction(id) {
+    const pi = UI.actingIndex();
+    UI.spendAction();
+    if (!id || !G.regions[id]) return;      // Monument has no region of its own
+    if (G.phase === 'gameover') return;
+    if (UI.actingIndex() !== pi) return;
+    if (G.regions[id].owner !== pi) return;
+    G.selected = id;
+    UI.openRegion(id);
+  },
+
   endTurn() {
     UI.mode = 'idle';
     const before = UI.actingIndex();
@@ -6728,11 +6796,11 @@ const UI = {
     const chosen = {};
     const path = UI.marchTargets(from)[to] || [];
     const champHere = Rules.championAt(pi, from);
-    /* The Champion rides with the army. It used to have its own march range
-       of 1 while hosts fortify any distance across your own land, so on most
-       moves the option was greyed out and the piece got left behind. It now
-       goes wherever the stack you are sending goes. */
-    const champInRange = champHere;
+    /* The Champion rides with the army — or travels alone. It used to have
+       its own march range of 1 while hosts fortify any distance across your
+       own land, so on most moves the option was greyed out and the piece
+       got left behind; that "out of range" state is gone; a Champion always
+       goes wherever it's sent, hosts or no hosts. */
     let sendChampion = false;
 
     const maxSpare = Rules.hostCount(src) - 1;
@@ -6766,6 +6834,13 @@ const UI = {
         </div>`;
       }).join('');
 
+      /* A champion-only ASSAULT is deliberately not offered: combat only
+         ever risks the Champion once its escort is exhausted (afterExchange
+         checks stackSize(c.force) === 0 to mean "the escort just died"), so
+         a force that starts empty reads as pre-wiped-out before a single die
+         is thrown, whatever the roll says — that's a combat-engine gap, not
+         a UI one, and worth its own careful pass rather than a rushed patch
+         here. A champion-only MARCH has no such dependency and is fine. */
       const fc = (hostile && total > 0) ? UI.forecast(pi, from, to, chosen, sendChampion) : null;
 
       UI.modal(`
@@ -6776,11 +6851,10 @@ const UI = {
                with ${Rules.hostCount(dest)} host(s): ${esc(UI.composition(dest.hosts))}.`
             : `Unopposed. At least one host must remain behind.`}</p>
         ${fc ? UI.forecastPanel(fc, total, Rules.hostCount(dest)) : ''}
-        ${champHere ? `<label class="check champ-check ${champInRange ? '' : 'disabled'}">
-            <input type="checkbox" id="send-champ" ${sendChampion ? 'checked' : ''}
-                   ${champInRange ? '' : 'disabled'}>
-            <span>Send your <b>Champion</b>${champInRange ? '' : ' — out of its march range'}.
-              ${champInRange ? 'It fights here, and dies for good if this force is destroyed.' : ''}</span>
+        ${champHere ? `<label class="check champ-check">
+            <input type="checkbox" id="send-champ" ${sendChampion ? 'checked' : ''}>
+            <span>Send your <b>Champion</b>${total < 1 && !hostile ? ' alone' : ''}.
+              It fights here, and dies for good if this force is destroyed.</span>
           </label>` : ''}
         <div class="quick-row">
           <button class="ghost small" data-frac="1">All spare (${maxSpare})</button>
@@ -6792,7 +6866,8 @@ const UI = {
         <div class="tally"><span>Committed <b>${total}</b></span><span>Remaining here <b>${left}</b></span></div>
         <div class="modal-actions">
           <button class="ghost" data-close>Cancel</button>
-          <button class="primary" id="send-go" ${total < 1 || left < 1 ? 'disabled' : ''}>
+          <button class="primary" id="send-go"
+            ${(total < 1 && !(sendChampion && !hostile)) || (total > 0 && left < 1) ? 'disabled' : ''}>
             ${hostile ? 'Attack' : 'March'}
           </button>
         </div>`);
@@ -6828,7 +6903,7 @@ const UI = {
         } else {
           const r = Rules.march(pi, from, to, chosen, { champion: sendChampion });
           if (!r.ok) { UI.notice('Cannot march', r.why); return; }
-          UI.spendAction();
+          UI.afterRegionAction(from);
         }
       });
     };
@@ -6908,8 +6983,11 @@ const UI = {
       + '  <div class="rz-kinds">' + chips + '</div>'
       + '  <div class="rz-amt">'
       + '    <div class="rz-note"></div>'
-      + '    <input type="range" class="r2-count" min="0" max="1" step="1" value="0"'
-      + '           aria-label="How many to raise">'
+      + '    <div class="rz-slide">'
+      + '      <input type="range" class="r2-count" min="0" max="1" step="1" value="0"'
+      + '             aria-label="How many to raise">'
+      + '      <div class="rz-ticks" aria-hidden="true"></div>'
+      + '    </div>'
       + '    <div class="rz-n"><b class="r2-amt-n">0</b></div>'
       + '  </div>'
       + '</div>'
@@ -6920,6 +6998,7 @@ const UI = {
       + '</div>',
       wire: card => {
         const count = card.querySelector('.r2-count');
+        const ticks = card.querySelector('.rz-ticks');
         const amtN  = card.querySelector('.r2-amt-n');
         const nameEl = card.querySelector('.rz-name');
         const ruleEl = card.querySelector('.rz-rule');
@@ -6928,19 +7007,44 @@ const UI = {
         const ok     = card.querySelector('.st-ok');
         const kinds  = [...card.querySelectorAll('.rk')];
 
+        /* RISK's slider tells you where the next stop is; a bare native
+           range does not. One tick per unit up to 20, coarser above that so
+           it never turns to a smear — always including the top tick, so the
+           true ceiling is never one un-marked notch past the last visible
+           one. Position math mirrors how a range input actually lays out
+           its thumb: centred from half a thumb-width in to half a
+           thumb-width from the end, never flush with the track's edges. */
+        const THUMB = 26;
+        const paintTicks = (max, want) => {
+          if (!ticks) return;
+          if (max <= 0) { ticks.innerHTML = ''; return; }
+          const step = max > 20 ? Math.ceil(max / 20) : 1;
+          const marks = [];
+          for (let v = 0; v <= max; v += step) marks.push(v);
+          if (marks[marks.length - 1] !== max) marks.push(max);
+          ticks.innerHTML = marks.map(v => {
+            const frac = v / max;
+            const cls = (v <= want ? 'on' : '') + (v === 0 || v === max ? ' end' : '');
+            return '<i class="' + cls + '" style="left:calc(' + (THUMB / 2) + 'px + '
+              + frac + ' * (100% - ' + THUMB + 'px))"></i>';
+          }).join('');
+        };
+
         /* The true max count of this kind the treasury covers, computed FROM
            ZERO against the budget left after every other kind's commitment —
            NOT added on top of what's already committed here, which is what
            let the slider run away to 20 on every drag: each tick raised
            `want`, and `want` fed straight back into its own ceiling. */
+        // no ceiling beyond the treasury: a cheap enough host with enough
+        // Tribute behind it can legitimately clear 20 in one action
         const capFor = i => {
           const m = meta[i];
           if (m.hard) return 0;
           const want = order[m.u] || 0;
           const others = totalCost() - kindCost(m, want);
           const budget = Math.max(0, p.tribute - others);
-          if (!m.freeUsed) return Math.min(20, Math.floor(budget / Math.max(1, m.cost)));
-          return Math.min(20, 1 + Math.floor(budget / Math.max(1, m.steadyCost)));
+          if (!m.freeUsed) return Math.floor(budget / Math.max(1, m.cost));
+          return 1 + Math.floor(budget / Math.max(1, m.steadyCost));
         };
 
         const sync = () => {
@@ -6971,6 +7075,7 @@ const UI = {
           count.disabled = cap === 0;
           amtN.textContent = want ? '+' + want : '0';
           amtN.classList.toggle('has', want > 0);
+          paintTicks(cap, want);
 
           tally.textContent = spent
             ? spent + 't · ' + totalHosts() + ' host' + (totalHosts() === 1 ? '' : 's')
@@ -7001,7 +7106,7 @@ const UI = {
             for (let i = 0; i < order[u]; i++) Rules.raiseHost(pi, regionId, u);
           }
           UI.pv.close();
-          UI.spendAction();
+          UI.afterRegionAction(regionId);
         });
 
         sync();
@@ -7025,7 +7130,7 @@ const UI = {
         <p>Tribute buys soldiers, walls — or legend. Spend it here and it becomes Renown XP
            at ${MONUMENT_RATE} Tribute per point. <b>Once per Round.</b></p>
         <div class="slider-row" style="grid-template-columns:7rem 1fr 6rem">
-          <div class="nm">Tribute<small>treasury ${p.tribute}</small></div>
+          <div class="nm">Tribute<small>have ${p.tribute}</small></div>
           <input type="range" min="${MONUMENT_MIN}" max="${p.tribute}" value="${amount}"
                  data-mon aria-label="Tribute to spend">
           <div class="ct"><b>${amount}</b><span class="rn-sub">→ ${xp} XP</span></div>
@@ -7033,7 +7138,7 @@ const UI = {
         <div class="tally">
           <span>XP after <b>${after}</b>${nextAt ? ` / ${nextAt}` : ''}</span>
           <span>Levels gained <b>${levels}</b></span>
-          <span>Treasury after <b>${p.tribute - amount}</b></span>
+          <span>Tribute after <b>${p.tribute - amount}</b></span>
         </div>
         <div class="modal-actions">
           <button class="ghost" data-close>Cancel</button>
@@ -7046,7 +7151,7 @@ const UI = {
       $('#mon-go').addEventListener('click', () => {
         Rules.raiseMonument(pi, amount);
         UI.closeModal();
-        UI.spendAction();
+        UI.afterRegionAction(G.selected);
       });
     };
     draw();
