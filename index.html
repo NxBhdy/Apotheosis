@@ -632,9 +632,26 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .ref-item span { font-size: .86rem; color: var(--ink-mid); }
 .ref-item i { font-style: normal; font-family: var(--f-mono); font-size: .78rem; color: var(--bronze); }
 
-@media (max-width: 1100px) {
-  #board { grid-template-columns: 1fr 18rem; }
-}
+/* An orphaned rule used to live here: `@media (max-width: 1100px) { #board {
+   grid-template-columns: 1fr 18rem; } }` — a leftover from the 22rem sidebar
+   the comment at #board's own base rule (above, "One column. The 22rem
+   sidebar it used to reserve no longer exists.") already says is gone. It
+   sat BEFORE the 900px override in source order, so by ordinary cascade
+   (equal specificity, later wins) it was live and unopposed for any
+   viewport strictly between 900 and 1100 CSS px — #map-pane, #board's only
+   child, never spans both columns, so that second column rendered as a
+   genuine empty 18rem (270px at this file's 15px root) strip showing
+   `body`'s near-black `--ground` right beside the map. That range is
+   exactly where a large-iPhone landscape rotation or Safari's "Request
+   Desktop Site" (~980px) lands — both real actions a player frustrated
+   that "the map looks small" might plausibly take — and is NOT covered by
+   the 375×812-portrait emulation this project verifies most fixes against,
+   which is consistent with a rule this wrong surviving unnoticed. Found by
+   grepping every #board rule and every @media breakpoint in this file
+   against each other rather than trusting any single rule read in
+   isolation — confirmed by no #map-pane rule anywhere setting grid-column,
+   so nothing was ever using that second track on purpose. Deleted; #board
+   is single-column at every width now, matching the comment above it. */
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
@@ -1675,7 +1692,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 <!-- ============ setup ============ -->
 <div id="setup" class="screen">
   <div class="setup-card">
-    <div class="eyebrow">Prototype · v0.1</div>
+    <div class="eyebrow">Prototype · v0.1 · <span id="build-id">built 2026-08-26 03:58 UTC</span></div>
     <h1>APOTHEOSIS</h1>
     <p class="setup-blurb">Four warlords, one contested world. Take ground, develop it, and become
       someone worth telling stories about.</p>
@@ -5601,7 +5618,7 @@ const UI = {
        pane might have resized" — lazily, off the critical path, never with
        fingers down — which is the only reason apply() would ever legitimately
        need to re-fire outside an actual camera gesture. */
-    if (!UI.cam._painted) { UI.cam._painted = true; UI.cam.apply(); }
+    if (!UI.cam._defaultSet) UI.cam.apply();
     UI.renderHint();
     /* renderHint can change the hint bar's height, which changes the map pane
        beneath it. Mark the cached board box stale and let warm() re-measure in
@@ -5874,13 +5891,23 @@ const UI = {
        already requires some panning to see beyond a portrait screen's
        width at its own default zoom — that is expected, not a bug, and
        the camera already supports it. */
+    /* _defaultSet only ever latches true INSIDE the success branch below,
+       not at entry — a rect() that comes back null/zero (never observed on
+       the real load-time call path, which sits after a synchronous
+       classList mutation and inherits getBoundingClientRect's forced
+       layout flush, but not something to leave unguarded) used to still
+       mark the default "handled" and permanently skip it for the rest of
+       the session. Now a failed read just retries on the next render —
+       gated by the caller above, which was itself changed to check this
+       same flag instead of a separate _painted latch that used to be set
+       unconditionally one line before apply() ever ran. */
     _defaultSet: false,
     apply() {
       const c = UI.cam;
       if (!c._defaultSet) {
-        c._defaultSet = true;
         const r = c.rect();
         if (r && r.width && r.height) {
+          c._defaultSet = true;
           /* Fit CONTENT HEIGHT, not "whichever dimension avoids cropping
              either one" — the latter barely zoomed in at all for Tennessee
              (a wide, short shape: its own width is already most of the
@@ -6136,7 +6163,30 @@ const UI = {
     armWatchdog(on) {
       const c = UI.cam;
       if (c._wd) { clearTimeout(c._wd); c._wd = 0; }
-      if (on) c._wd = setTimeout(() => { c._wd = 0; if (c._live || c._pts.size) c.heal(); }, 1200);
+      if (on) c._wd = setTimeout(() => {
+        c._wd = 0;
+        if (!c._live && !c._pts.size) return;
+        /* Silence alone never proves the finger lifted — a drag paused to
+           read a territory name, or a pinch paused to judge the zoom,
+           produces zero pointermove too, since real touchscreens only fire
+           pointermove when the reported coordinate actually changes. The
+           watchdog used to treat 1200ms of quiet as proof of an abandoned
+           gesture and call heal() unconditionally — which purges _pts/
+           _mode/_anchor out from under a finger that never lifted, so its
+           next pointermove failed the `_pts.has()` guard in the move
+           handler and the board stopped responding for the rest of that
+           touch, recovering only once the player lifted and touched again.
+           Give a genuinely still finger real room: as long as some real
+           pointer event landed within the last 6s (_lastAt, already
+           refreshed on every pointerdown/pointermove), just stay armed and
+           leave the live transform and tracked pointers untouched — there
+           is nothing visually wrong while a finger is merely paused. Only
+           past 6s of TOTAL silence does this fall through to heal(), which
+           is what actually recovers a gesture the OS silently dropped —
+           the rarer case this watchdog exists for. */
+        if (performance.now() - c._lastAt < 6000) { c.armWatchdog(true); return; }
+        c.heal();
+      }, 1200);
     },
 
     /* "Fit to board" — zoom out as far as safely possible (minK(), never
@@ -6248,12 +6298,30 @@ const UI = {
           c._anchor = { x: e.clientX, y: e.clientY };
         } else if (c._pts.size === 2) {
           /* Seed the baseline the instant the second finger lands. A frame
-             late meant the travel in that frame read as an instant jump. */
-          c._mode = 'pinch';
-          c._moved = true;
+             late meant the travel in that frame read as an instant jump.
+
+             begin() can fail — it bails without setting _live if rect()
+             can't get a real measurement of #map that instant (a genuine,
+             reproduced case: getBoundingClientRect height comes back 0
+             while the tab is backgrounded, and nothing guarantees layout
+             has caught up the instant a backgrounded tab returns either).
+             _mode/_moved used to latch to 'pinch' UNCONDITIONALLY before
+             calling begin(), with no rollback on failure — so a single bad
+             measurement wedged the WHOLE gesture: pointermove's own retry
+             path only fires when _mode !== 'pan', which 'pinch' already
+             satisfies as false, so it never got a second chance. Only
+             commit to pinch mode once begin() actually turned _live on. */
           c.begin();
-          c.seedPinch();
-          grab(e.pointerId);
+          if (c._live) {
+            c._mode = 'pinch';
+            c._moved = true;
+            c.seedPinch();
+            grab(e.pointerId);
+          }
+          /* else: leave _mode as it was. The next pointermove for the
+             surviving finger falls through to the PAN path below, which
+             retries begin() on its own — self-healing rather than dead
+             for the rest of this touch. */
         }
       }, { passive: false });      /* explicit: preventDefault must not be ignored */
 
@@ -6290,8 +6358,19 @@ const UI = {
            apart — a real tap rarely drifts that far even on a phone. */
         if (c._mode !== 'pan' && Math.hypot(dx, dy) < 5) return;
         if (c._mode !== 'pan') {
-          c._mode = 'pan'; c._moved = true;
+          /* Same ordering fix as the pinch-start branch above, for the
+             same reason: begin() can fail (see its comment there), and
+             latching _mode='pan' regardless would mean this exact branch
+             — the only place that ever calls begin() for a pan — can
+             never run again for this finger, since it is gated on
+             _mode !== 'pan', which would already be false. Only commit to
+             pan mode once begin() actually turned _live on, so a
+             transient failure retries on the very next pointermove
+             instead of leaving the whole drag dead until the finger lifts
+             and touches down again. */
           c.begin();
+          if (!c._live) return;
+          c._mode = 'pan'; c._moved = true;
           grab(e.pointerId);
         }
         c.gPan(dx, dy);
@@ -6315,11 +6394,37 @@ const UI = {
           /* THE LIFT JUMP. The anchor held where the FIRST finger landed, so
              the survivor resumed panning from there and the board leapt.
              Re-seed to where the remaining finger actually is. */
-          const rest = [...c._pts.values()][0];
+          const restId = [...c._pts.keys()][0];
+          const rest = c._pts.get(restId);
           c._anchor = { x: rest.x, y: rest.y };
           c._mode = 'pan';
           c._dist = 0;
           c._mid = null;
+          /* grab() is only ever called for the SECOND finger of a pinch
+             (the pointerdown size===2 branch below) — the first is
+             deliberately left uncaptured so its own pointerdown can still
+             produce the compatibility click a tap-to-select needs. If that
+             captured second finger is the one that just lifted, the
+             survivor here is the FIRST finger, which has never held
+             capture. Left uncaptured, the instant it drifts outside
+             #map-wrap's box — plausible near any screen edge mid-gesture —
+             the browser's ordinary hit-testing stops routing its
+             pointermove here at all, and the pan silently goes dead: not a
+             stuck transform, but "the board stopped tracking my finger."
+
+             grab()'s own guard ("if (c._held != null) return") assumes
+             capture is granted at most once per gesture, which was true
+             before this branch existed — so if _held still names the
+             finger that just lifted, that guard would wrongly block the
+             handoff to the survivor. Clear it first, exactly the same
+             condition lostpointercapture's own handler already uses below,
+             so the two stay consistent: only forget _held when it refers
+             to THIS specific pointer, not unconditionally. Verified live:
+             without this clear, the survivor never actually received
+             capture (_held stayed pinned to the lifted finger's id) even
+             though grab() was reached and called every time. */
+          if (c._held === e.pointerId) c._held = null;
+          grab(restId);
           return;
         }
 
