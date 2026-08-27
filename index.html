@@ -343,7 +343,17 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   pointer-events: none; text-anchor: middle;
 }
 .glyph { pointer-events: none; }
-.troop { pointer-events: auto; cursor: help; }
+.troop {
+  pointer-events: auto; cursor: help;
+  /* The only SVG text in this renderer that ISN'T pointer-events:none — a
+     long-press can land directly on it. user-select/touch-callout:none on
+     html,body should inherit here same as anywhere else, but WebKit's
+     handling of those two properties on SVG content specifically has a long
+     history of not reliably honouring pure inheritance the way it does for
+     HTML text. Belt and suspenders: set directly on the one SVG element a
+     touch can actually target. */
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+}
 .troop-n {
   font-family: var(--f-mono); font-size: 12px; font-weight: 700; fill: #f4f1ea;
   text-anchor: middle; paint-order: stroke; stroke: rgba(6,8,13,.9); stroke-width: 2.6px;
@@ -1704,7 +1714,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 <!-- ============ setup ============ -->
 <div id="setup" class="screen">
   <div class="setup-card">
-    <div class="eyebrow">Prototype · v0.1 · <span id="build-id">built 2026-08-27 12:03 UTC</span></div>
+    <div class="eyebrow">Prototype · v0.1 · <span id="build-id">built 2026-08-27 12:13 UTC</span></div>
     <h1>APOTHEOSIS</h1>
     <p class="setup-blurb">Four warlords, one contested world. Take ground, develop it, and become
       someone worth telling stories about.</p>
