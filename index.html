@@ -74,6 +74,23 @@ html, body {
      tap target here already has its own feedback; the browser's default adds
      noise on top of it rather than replacing it. */
   -webkit-tap-highlight-color: transparent;
+  /* Nothing in this app is a document — there is no field anywhere a player
+     types free text into (checked: no <input type="text">, nothing
+     contenteditable). Scoping this to #map-wrap alone (as it used to be)
+     missed everything else: the top bar, hint bar, and every .pv popover
+     (region sheets, chronicle, how-to-play) are separate DOM subtrees full
+     of exactly the kind of text a long-press selects, and none of them
+     inherited a rule that lived only on the map. A real recording showed
+     iOS selecting a popover's title text mid-gesture and popping its native
+     Copy/Look Up/Translate menu directly over the game UI — competing for
+     the same touch this app is trying to drive itself, same class of
+     problem as the two-finger callout #map-wrap already guarded against,
+     just on a surface that guard never covered. Global default, same shape
+     as touch-action above; reopen per-element with user-select:text if a
+     future surface genuinely needs it (none currently do). */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 button { font-family: inherit; font-size: inherit; cursor: pointer; }
@@ -1329,14 +1346,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 #map-wrap {
   touch-action: none; cursor: grab;
-  /* A fast two-finger touch can otherwise trigger iOS's long-press callout
-     (copy/share menu) or a text-selection highlight mid-gesture — another
-     system UI competing for the same touch, and another source of the delay
-     scaling with how "confident" the gesture looks. Both are pure liability
-     on a map with no text to select and no content to share. */
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
+  /* touch-callout/user-select:none is now a global default on html,body —
+     this used to duplicate it locally, which is exactly what let every
+     OTHER surface (popovers, top bar, hint bar) ship without it. */
 }
 #map-wrap:active { cursor: grabbing; }
 
@@ -1692,7 +1704,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 <!-- ============ setup ============ -->
 <div id="setup" class="screen">
   <div class="setup-card">
-    <div class="eyebrow">Prototype · v0.1 · <span id="build-id">built 2026-08-26 03:58 UTC</span></div>
+    <div class="eyebrow">Prototype · v0.1 · <span id="build-id">built 2026-08-27 12:03 UTC</span></div>
     <h1>APOTHEOSIS</h1>
     <p class="setup-blurb">Four warlords, one contested world. Take ground, develop it, and become
       someone worth telling stories about.</p>
@@ -6325,7 +6337,27 @@ const UI = {
         }
       }, { passive: false });      /* explicit: preventDefault must not be ignored */
 
-      wrap.addEventListener('pointermove', e => {
+      /* Bound to the WINDOW, not to #map-wrap — same reason as pointerup/
+         pointercancel below, and the gap that let the freeze they were
+         fixed for keep happening anyway. Pointer capture is dropped
+         routinely (lostpointercapture on every mid-drag re-render) and can
+         fail to be GRANTED at all — grab()'s setPointerCapture call is
+         wrapped in try/catch specifically because it is allowed to throw,
+         and the pinch-survivor handoff in end() depends on that same call
+         succeeding. Whenever capture isn't actually in effect, a finger
+         that drifts outside #map-wrap's box — reachable near the top bar
+         or hint bar on a pane that is most but not all of the screen, and
+         at least as likely mid-pinch as mid-pan — stops delivering
+         pointermove to a wrap-scoped listener at all; ordinary hit-testing
+         just routes it elsewhere. Nothing errors and no end event fires, so
+         the gesture never reaches heal() — it freezes exactly where the
+         last delivered move left it, live transform and all, which reads
+         on screen as the board going blank/adrift for as long as the
+         finger stays down. The `_pts.has()` guard immediately below is
+         what makes window-binding safe: only pointers this handler already
+         saw arrive via wrap's own pointerdown are ever acted on, so a touch
+         that starts elsewhere on the page is still ignored. */
+      addEventListener('pointermove', e => {
         if (!c._pts.has(e.pointerId)) return;
         c._lastAt = e.timeStamp;     /* the gesture is alive; see staleness check above */
         c.armWatchdog(true);
@@ -6375,7 +6407,7 @@ const UI = {
         }
         c.gPan(dx, dy);
         c._anchor = { x: e.clientX, y: e.clientY };
-      });
+      }, true);
 
       const end = e => {
         if (!c._pts.delete(e.pointerId)) {
