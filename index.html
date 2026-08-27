@@ -1714,7 +1714,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 <!-- ============ setup ============ -->
 <div id="setup" class="screen">
   <div class="setup-card">
-    <div class="eyebrow">Prototype · v0.1 · <span id="build-id">built 2026-08-27 12:13 UTC</span></div>
+    <div class="eyebrow">Prototype · v0.1 · <span id="build-id">built 2026-08-27 12:37 UTC</span></div>
     <h1>APOTHEOSIS</h1>
     <p class="setup-blurb">Four warlords, one contested world. Take ground, develop it, and become
       someone worth telling stories about.</p>
@@ -6095,9 +6095,37 @@ const UI = {
         c._traf = 0;
         const svg = $('#map');
         if (!svg || !c._live) return;
+        /* This paints a PREVIEW, not the map: #map's own viewBox clips
+           painting to whatever was visible at the moment of the last real
+           commit, so a CSS transform can only stretch/slide that already-
+           rasterised rectangle — it has no more picture to reveal beyond
+           its own edges, because nothing beyond them was ever painted. A
+           gesture that pans or zooms far in one continuous motion asks for
+           more than that rectangle has, and the wrap's own background
+           (plain sea-blue, no map) shows through wherever it runs out —
+           not a stuck or broken state, just a snapshot stretched past what
+           it contains. Reported by a real tester as the board "not
+           loading" / "not seamless" during exactly this: real gestures on
+           a phone routinely cover more distance in one motion than this
+           preview can survive.
+
+           _gs/_tx/_ty themselves stay exactly as computed — commit() reads
+           them at gesture-end and must still land on the precise position
+           the fingers actually indicated, uncapped. Only what gets PAINTED
+           here is bounded, so the preview holds a full, real-looking frame
+           once a sufficiently large gesture outruns it, instead of thinning
+           into blue — then snaps to the exact right place on release. */
+        const r = c._rect;
+        let vgs = c._gs, vtx = c._tx, vty = c._ty;
+        if (r) {
+          vgs = Math.max(0.75, Math.min(1.35, c._gs));
+          const maxT = 0.18;
+          vtx = Math.max(-r.width  * maxT, Math.min(r.width  * maxT, c._tx));
+          vty = Math.max(-r.height * maxT, Math.min(r.height * maxT, c._ty));
+        }
         svg.style.transform =
-          'translate(' + c._tx.toFixed(2) + 'px,' + c._ty.toFixed(2) + 'px) '
-          + 'scale(' + c._gs.toFixed(5) + ')';
+          'translate(' + vtx.toFixed(2) + 'px,' + vty.toFixed(2) + 'px) '
+          + 'scale(' + vgs.toFixed(5) + ')';
       });
     },
 
