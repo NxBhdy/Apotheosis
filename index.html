@@ -253,7 +253,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
    #xp-strip was added against a two-row template it became an implicit third
    row sized 1fr, which handed 457px of an 812px phone to a 3px element and
    left the map with 38% of the screen. */
-#game { display: grid; grid-template-rows: auto auto 1fr; height: 100%; }
+#game { display: grid; grid-template-rows: auto auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); height: 100%; min-width: 0; }
 
 #topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
@@ -286,12 +286,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 /* ---------------- board ---------------- */
 
 /* One column. The 22rem sidebar it used to reserve no longer exists. */
-#board { display: grid; grid-template-columns: 1fr; min-height: 0; }
+#board { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; min-width: 0; }
 /* position: relative so the announcement layer can sit over the board without
    escaping into the sidebar on desktop. */
 #map-pane { display: grid; grid-template-rows: 1fr auto; min-height: 0; min-width: 0; position: relative; }
-#map-wrap { min-height: 0; padding: .6rem; display: grid; place-items: center; }
-#map { width: 100%; height: 100%; max-height: 100%; }
+#map-wrap { min-height: 0; min-width: 0; position: relative; overflow: hidden; }
+#map { position: absolute; left: 0; top: 0; max-width: none; max-height: none; transform-origin: 0 0; will-change: transform; }
 
 .phase-tag {
   font-family: var(--f-mono); font-size: .68rem; letter-spacing: .16em;
@@ -325,19 +325,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .region.target .fill   { stroke: var(--verdigris); stroke-width: 2.2; filter: url(#tgtGlow); }
 .region.dim            { opacity: .28; }
 .region.dim .fill      { filter: saturate(.3); }
-.region .grain         { pointer-events: none; mix-blend-mode: overlay; }
+.region .grain         { pointer-events: none; }
 
 /* Whose ground it is, and whether you can act on it, without recolouring
    the fill — the rim carries ownership, these carry state. */
 .region.mine .rim      { stroke-opacity: .7; }
 .region.actionable .rim{ stroke-opacity: .9; stroke-width: 3; }
 .region.foe .rim       { stroke-dasharray: none; }
-.region.open .fill     { stroke: #2a3040; stroke-width: 1.4; }
+.region.open .fill     { stroke: #657476; stroke-opacity: .5; stroke-width: 1.4; }
 .region.restive .fill  { stroke: var(--blood); stroke-opacity: .8; stroke-width: 2; }
 .domain-edge { pointer-events: none; }
 
 .region-name {
-  font-family: var(--f-display); font-size: 13.5px; font-weight: 600;
+  font-family: var(--f-display); font-size: 15px; font-weight: 600;
   letter-spacing: .02em;
   fill: #f4f1ea; paint-order: stroke; stroke: rgba(5,6,10,.92); stroke-width: 3.4px;
   pointer-events: none; text-anchor: middle;
@@ -358,6 +358,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   font-family: var(--f-mono); font-size: 12px; font-weight: 700; fill: #f4f1ea;
   text-anchor: middle; paint-order: stroke; stroke: rgba(6,8,13,.9); stroke-width: 2.6px;
 }
+.troop-count { fill: #111b27; stroke: #a8a08d; stroke-width: .8; pointer-events: none; }
 .def-flag { pointer-events: none; }
 .def-n { font-family: var(--f-mono); font-size: 9.5px; font-weight: 700; fill: var(--verdigris); text-anchor: middle; }
 .host-badge { pointer-events: none; }
@@ -864,7 +865,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   }
 
   #map-pane { grid-row: 1; min-height: 0; }
-  #map-wrap { padding: .3rem; }
+  #map-wrap { padding: 0; }
   /* the map keeps a strip of clear space so the collapsed sheet never sits
      on top of the southern territories */
   #map-pane { padding-bottom: 3.1rem; }   /* legend is desktop-only */
@@ -1364,6 +1365,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 #cam-ctl {
   position: absolute; right: .5rem; bottom: .5rem; z-index: 5;
+  grid-area: 1 / 1 / 2 / 2;
   display: flex; flex-direction: column; gap: .3rem;
 }
 #cam-ctl button {
@@ -1661,20 +1663,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 /* ============================================================
    GESTURE PERFORMANCE
 
-   The board carries three full-map feTurbulence layers under
-   mix-blend-mode:overlay. Procedural per-pixel noise on a non-cacheable
-   compositing path: the browser keeps the result only while the paint is
-   static, and every viewBox write throws it away and recomputes the lot.
-   That was the second-long lag behind a pinch.
-
-   Two defences. While fingers are down the camera writes a CSS transform
-   instead of the viewBox, so the compositor reuses the raster it already has
-   and nothing repaints. And the noise is dropped whenever the board is not at
-   rest, so the single commit paint on release is cheap too.
+   A full-board SVG surface moves inside a stationary viewport. Unlike a
+   viewport-sized snapshot it contains all offscreen territories. Lightweight
+   vector grain keeps repainting cheap when game state changes.
    ============================================================ */
 
 #map-wrap {
-  overflow: hidden;                    /* the transformed board is clipped */
+  overflow: hidden;
   /* Deep ocean, matching the OUTERMOST stop of the #sea radial gradient in
      render-map.js. The wrap had no background of its own, so every pixel the
      board did not cover showed --ground (#12141c) — near-black. That is what
@@ -1684,22 +1679,22 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
      gesture bug is fixed at its source in ui.js; this makes the whole class
      of "board does not cover the pane" failures land on ocean instead of a
      void, including any future one. Keep these two values in step. */
-  background: #1e4b6b;
+  background: #102b3d;
 }
 
-/* The board is promoted to its own compositor layer ONCE, here, rather than at
-   the start of every gesture. Doing it per-gesture meant the browser had to
-   rasterise the whole 1340x960 board into a fresh texture before the first
-   frame of a pinch could move — a stall at the start of the gesture and then
-   perfect smoothness after, which is exactly how it felt.
-
-   Nothing is hidden mid-gesture any more either. Suppressing the texture
-   layers when a gesture began forced a full repaint at the worst possible
-   moment, and bought nothing: the transform reuses the existing raster, so
-   those layers cost nothing while the fingers are down. */
+/* Only the world surface moves; the wrapping viewport stays in place. */
 #map {
-  will-change: transform;
-  transform-origin: 0 0;
+  display: block;
+}
+
+/* The map viewport must never inherit the top bar's intrinsic text width. */
+@media (max-width: 600px) {
+  #topbar { gap: 4px; padding: 0 4px; height: 45px; min-width: 0; }
+  .tb-left { max-width: 43px; overflow: hidden; }
+  .tb-players { min-width: 0; gap: 3px; justify-content: flex-start; }
+  .tb-p { flex: 1 1 0; min-width: 44px; height: 44px; padding: 3px; overflow: hidden; }
+  .tb-right { gap: 0; }
+  #hintbar { min-height: 43px; min-width: 0; }
 }
 
 /* is-zoomed texture-hiding removed: it saved ~1-2ms on the commit paint and
@@ -1714,7 +1709,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 <!-- ============ setup ============ -->
 <div id="setup" class="screen">
   <div class="setup-card">
-    <div class="eyebrow">Prototype · v0.1 · <span id="build-id">built 2026-08-27 12:37 UTC</span></div>
+    <div class="eyebrow">Prototype · v0.1 · <span id="build-id">built 2026-10-07 12:04 UTC</span></div>
     <h1>APOTHEOSIS</h1>
     <p class="setup-blurb">Four warlords, one contested world. Take ground, develop it, and become
       someone worth telling stories about.</p>
@@ -4636,9 +4631,11 @@ const MapView = {
                             L-1.7,2.4 L-0.44,1.96 Z" fill="${L}" stroke="none"/>`
     }[unitId] || `<circle r="4"/>`;
 
-    return `<g filter="url(#pieceShadow)">
-      <circle r="8.5" fill="rgba(8,10,16,.86)" stroke="${colour}" stroke-opacity=".55" stroke-width="1"/>
-      <g fill="${colour}" stroke="${D}" stroke-width=".85" stroke-linejoin="round">${body}</g>
+    return `<g>
+      <circle cy="1" r="8.5" fill="#080c13"/>
+      <circle r="8.5" fill="${mix(colour, '#141c27', .22)}" stroke="${colour}" stroke-width="1.1"/>
+      <path d="M-6.6,-4.2 A7.8,7.8 0 0 1 5.7,-5.4" fill="none" stroke="#fff6dc" stroke-opacity=".45" stroke-width=".5"/>
+      <g fill="#eee5ce" stroke="${D}" stroke-width=".65" stroke-linejoin="round" transform="scale(.83)">${body}</g>
     </g>`;
   },
 
@@ -4709,8 +4706,8 @@ const MapView = {
 
     const domains = Object.keys(DOMAINS).map(k => `
       <radialGradient id="wild_${k}" cx="42%" cy="34%" r="78%">
-        <stop offset="0%"  stop-color="${mix(DOMAINS[k].tint, '#0f1119', 0.26)}"/>
-        <stop offset="100%" stop-color="${mix(DOMAINS[k].tint, '#0a0c12', 0.13)}"/>
+        <stop offset="0%"  stop-color="${mix(DOMAINS[k].tint, '#253039', 0.35)}"/>
+        <stop offset="100%" stop-color="${mix(DOMAINS[k].tint, '#151f2a', 0.22)}"/>
       </radialGradient>`).join('');
 
     /* Every territory outline is a long fractal path. Defining each one once
@@ -4742,9 +4739,9 @@ const MapView = {
     return `<defs>
       ${shapes}${coast}${clips}${owners}${domains}
       <radialGradient id="sea" cx="50%" cy="45%" r="72%">
-        <stop offset="0%"   stop-color="#2f6b93"/>
-        <stop offset="60%"  stop-color="#285e83"/>
-        <stop offset="100%" stop-color="#1e4b6b"/>
+        <stop offset="0%"   stop-color="#244d60"/>
+        <stop offset="60%"  stop-color="#193c50"/>
+        <stop offset="100%" stop-color="#102b3d"/>
       </radialGradient>
       <filter id="landShadow" x="-12%" y="-12%" width="124%" height="124%">
         <feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="#05060a" flood-opacity=".75"/>
@@ -4762,7 +4759,7 @@ const MapView = {
       <linearGradient id="worldLight" x1="0%" y1="0%" x2="72%" y2="100%">
         <stop offset="0%"   stop-color="#ffffff" stop-opacity=".16"/>
         <stop offset="42%"  stop-color="#ffffff" stop-opacity="0"/>
-        <stop offset="100%" stop-color="#000000" stop-opacity=".34"/>
+        <stop offset="100%" stop-color="#000000" stop-opacity=".18"/>
       </linearGradient>
       <filter id="shelfBlur" x="-15%" y="-15%" width="130%" height="130%">
         <feGaussianBlur stdDeviation="3.5"/>
@@ -4798,14 +4795,15 @@ const MapView = {
         <feTurbulence type="fractalNoise" baseFrequency="0.022 0.05" numOctaves="3" seed="19" result="n"/>
         <feColorMatrix in="n" type="saturate" values="0"/>
       </filter>
-      <pattern id="landGrain" width="220" height="220" patternUnits="userSpaceOnUse">
-        <rect width="220" height="220" filter="url(#grainStone)" opacity=".30"/>
+      <pattern id="landGrain" width="43" height="37" patternUnits="userSpaceOnUse">
+        <path d="M3 7h2 M21 26h3 M34 12h1" stroke="#eee1bd" stroke-opacity=".11" stroke-width=".7"/>
+        <path d="M8 29h3 M28 3h2" stroke="#080f18" stroke-opacity=".18" stroke-width=".8"/>
       </pattern>
       <pattern id="landFibre" width="${MAP_W}" height="${MAP_H}" patternUnits="userSpaceOnUse">
         <rect width="${MAP_W}" height="${MAP_H}" filter="url(#grainFibre)" opacity=".13"/>
       </pattern>
-      <pattern id="seaGrain" width="${MAP_W}" height="${MAP_H}" patternUnits="userSpaceOnUse">
-        <rect width="${MAP_W}" height="${MAP_H}" filter="url(#grainSwell)" opacity=".09"/>
+      <pattern id="seaGrain" width="72" height="60" patternUnits="userSpaceOnUse">
+        <path d="M8 18q7 -3 14 0t14 0 M44 46q7 -3 14 0" fill="none" stroke="#8bafb2" stroke-opacity=".09" stroke-width=".7"/>
       </pattern>
     </defs>`;
   },
@@ -4838,13 +4836,16 @@ const MapView = {
     const a = (0.7 + r() * 0.6);                    // per-motif size jitter
     switch (type) {
       case 'mine':                                   // rock peaks
-        return `<path d="M${-7 * a},${4 * a} L${-1.5 * a},${-5 * a} L${1 * a},${-1 * a}
-                         L${3 * a},${-3.5 * a} L${7 * a},${4 * a} Z"/>`;
+        return `<g transform="scale(${a})" fill="none" stroke-width="1.1">
+          <path d="M-17,7 L-7,-9 L-2,-2 L4,-16 L19,7 M-7,-9 L-5,3 M4,-16 L6,0 L12,7"/>
+          <path d="M-11,-3 L-7,-1 L-5,-4 M0,-7 L4,-5 L7,-9 M-20,10 Q0,7 22,10"/>
+        </g>`;
       case 'forge':                                  // slag heaps and a spark
         return `<path d="M${-6 * a},${3 * a} Q0,${-4 * a} ${6 * a},${3 * a} Z"/>`;
       case 'farmland':                               // ploughed furrows
-        return `<path d="M${-7 * a},0 Q0,${-3 * a} ${7 * a},0" fill="none" stroke-width="1.5"/>
-                <path d="M${-7 * a},${3.5 * a} Q0,${0.5 * a} ${7 * a},${3.5 * a}" fill="none" stroke-width="1.5"/>`;
+        return `<g transform="scale(${a})" fill="none" stroke-width="1">
+          <path d="M-13,-3 Q0,-9 13,-3 M-13,1 Q0,-5 13,1 M-13,5 Q0,-1 13,5 M-13,9 Q0,3 13,9"/>
+        </g>`;
       case 'port':                                   // swell
         return `<path d="M${-7 * a},0 q${3.5 * a},${-3 * a} ${7 * a},0 t${7 * a},0"
                       fill="none" stroke-width="1.6"/>`;
@@ -4938,7 +4939,7 @@ const MapView = {
      hole in the world. */
   layerVoid() {
     return `<rect x="-2400" y="-3400" width="${MAP_W + 4800}" height="${MAP_H + 6800}"
-              fill="#1e4b6b" pointer-events="none"/>`;
+              fill="#102b3d" pointer-events="none"/>`;
   },
 
   /* The whole continent as one silhouette so it casts a single shadow.
@@ -4954,14 +4955,12 @@ const MapView = {
      a circle. Shallow and bright at the shore, deep and cold further out. */
   layerShelf() {
     const bands = [
-      { w: 210, c: '#245878', o: .45 },
-      { w: 156, c: '#2a6288', o: .50 },
-      { w: 110, c: '#316d95', o: .55 },
-      { w: 72,  c: '#3a7ba5', o: .60 },
-      { w: 42,  c: '#478db8', o: .66 },
-      { w: 18,  c: '#59a3cc', o: .72 }
+      { w: 86, c: '#31596b', o: .18 },
+      { w: 58, c: '#426e7a', o: .22 },
+      { w: 34, c: '#58878b', o: .26 },
+      { w: 15, c: '#8dafaa', o: .32 }
     ];
-    return `<g filter="url(#shelfBlur)" pointer-events="none">`
+    return `<g pointer-events="none">`
       + bands.map(b => `<use href="#coastline" fill="none" stroke="${b.c}"
           stroke-opacity="${b.o}" stroke-width="${b.w}"/>`).join('')
       + `</g>`;
@@ -4980,7 +4979,7 @@ const MapView = {
      over the whole sea. Sampling the rendered pixels showed #0d0d16 — the
      landmass fill — everywhere the water should have been. */
   layerLandmass() {
-    return `<g filter="url(#landShadow)" clip-path="url(#clip_coast)">`
+    return `<g clip-path="url(#clip_coast)">`
       + Object.keys(REGIONS).map(id => `<use href="#tp_${id}" fill="#0e1017"/>`).join('')
       + `</g>`;
   },
@@ -5024,7 +5023,7 @@ const MapView = {
     const cls = 'hold-inc' + (restive ? ' restive' : boosted ? ' boosted' : '');
 
     return `<g class="holding-mark" data-tip="${tip.replace(/"/g, '&quot;')}"
-      transform="translate(${c.x + 30},${c.y - 14})">
+      transform="translate(${c.x + 31},${c.y - 34})">
       <rect x="-13" y="-20" width="26" height="40" fill="transparent"/>
       ${MapView.holdingShape(rs.holding)}
       <text class="${cls}" x="0" y="19">${label}</text></g>`;
@@ -5050,9 +5049,9 @@ const MapView = {
        is actually visible. At this size four across would overflow the
        narrower territories, so the row wraps at three and stacks. */
     const SCALE = PIECE_SCALE;
-    const PX = 42, PY = 46, PER_ROW = 3;
+    const PX = 46, PY = 49, PER_ROW = 3;
     const rows = Math.ceil(kinds.length / PER_ROW);
-    const py0 = c.y + 38 - (rows - 1) * PY / 2;
+    const py0 = c.y + 35;
 
     let out = kinds.map((u, i) => {
       const row = Math.floor(i / PER_ROW);
@@ -5067,7 +5066,8 @@ const MapView = {
         transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
         <rect x="-20" y="-22" width="40" height="50" fill="transparent"/>
         <g transform="scale(${SCALE})">${MapView.troopShape(u, col)}</g>
-        <text class="troop-n" x="0" y="26">${rs.hosts[u]}</text></g>`;
+        <rect class="troop-count" x="3" y="9" width="${Math.max(21, String(rs.hosts[u]).length * 9 + 10)}" height="18" rx="7"/>
+        <text class="troop-n" x="${3 + Math.max(21, String(rs.hosts[u]).length * 9 + 10) / 2}" y="22">${rs.hosts[u]}</text></g>`;
     }).join('');
 
     const d = MapView.defenceRating(id);
@@ -5097,9 +5097,9 @@ const MapView = {
       + ' to the highest die where it stands. Marches ' + Rules.championMarchRange(champ)
       + '. If its stack is wiped with no Warden present it dies <b>permanently</b>.<br><br>' + perks;
     return `<g class="champion-mark" data-tip="${tip.replace(/"/g, '&quot;')}"
-      transform="translate(${c.x - 38},${c.y + 4})">
+      transform="translate(${c.x - 31},${c.y - 34})">
       <circle r="18" fill="none" stroke="${cc}" stroke-opacity=".3" stroke-width="2"/>
-      <circle r="14" fill="${cc}" stroke="#f2efe8" stroke-width="2" filter="url(#pieceShadow)"/>
+      <circle r="14" fill="${cc}" stroke="#f2efe8" stroke-width="2"/>
       <g fill="#12141c" stroke="none">
         <path d="M-4.6,-6.9 L-5.1,-10.5 L-2.6,-7.7 L0,-11.7 L2.6,-7.7 L5.1,-10.5 L4.6,-6.9 Z"/>
         <circle cx="0" cy="-4.2" r="4.3"/>
@@ -5134,7 +5134,7 @@ const MapView = {
        so only the inner half survives and the territory reads as pressed
        into the land rather than laid on top of it. */
     out += `<use class="carve" href="#tp_${id}" fill="none" stroke="#05060a"
-      stroke-opacity=".42" stroke-width="9" clip-path="url(#clip_${id})"></use>`;
+      stroke-opacity=".3" stroke-width="4" clip-path="url(#clip_${id})"></use>`;
 
     /* An inset outline in the owner's colour reads as a carved edge and,
        more usefully, makes whose land it is legible from across the board
@@ -5158,10 +5158,21 @@ const MapView = {
     const cls = ['region-content'];
     if (ctx.marching && !ctx.targets[id] && id !== ctx.sel) cls.push('dim');
 
+    // Closely spaced cities (especially Tennessee) must not print names on
+    // top of one another. Keep full names, fitting only the crowded labels.
+    let labelWidth = Infinity;
+    for (const other in REGIONS) {
+      if (other === id) continue;
+      const p = REGIONS[other].centre;
+      if (Math.abs(p.y - c.y) < 18) labelWidth = Math.min(labelWidth, Math.abs(p.x - c.x) - 7);
+    }
+    const fitLabel = labelWidth > 0 && labelWidth < def.name.length * 8
+      ? ` textLength="${labelWidth.toFixed(1)}" lengthAdjust="spacingAndGlyphs"` : '';
+
     let out = `<g class="${cls.join(' ')}" data-region="${id}">`;
-    out += `<g class="glyph" transform="translate(${c.x},${c.y - 26})" fill="rgba(242,239,232,.42)"
+    out += `<g class="glyph" transform="translate(${c.x},${c.y - 32})" fill="rgba(242,239,232,.42)"
       stroke="rgba(242,239,232,.42)" stroke-linecap="round">${MapView.glyph(def.type)}</g>`;
-    out += `<text class="region-name" x="${c.x}" y="${c.y + 2}">${esc(def.name)}</text>`;
+    out += `<text class="region-name" x="${c.x}" y="${c.y + 2}"${fitLabel}>${esc(def.name)}</text>`;
     out += MapView.partHolding(rs, c, id);
     out += MapView.partUnrest(rs, c);
     out += MapView.partTroops(id, rs, c, owner);
@@ -5262,13 +5273,7 @@ const MapView = {
       statics += MapView.layerFrontiers();
       statics += `<g id="territory-fills"></g>`;
       statics += MapView.layerWorldLight();
-      /* Two texture passes over the land: lit relief for physical tooth, then
-         a directional fibre for a paper-like grain. Both trimmed to the coast. */
-      statics += `<rect class="land-tex" x="0" y="0" width="${MAP_W}" height="${MAP_H}"
-                filter="url(#landRelief)" opacity=".30"
-                style="mix-blend-mode:overlay" pointer-events="none"/>`;
-      statics += `<use class="land-tex" href="#coastline" fill="url(#landFibre)"
-                style="mix-blend-mode:overlay" pointer-events="none"/>`;
+      // Fine vector grain is carried by each territory; no full-map filters.
       statics += `</g>`;
 
       // the shoreline itself, drawn over everything so it reads as an edge
@@ -5617,15 +5622,7 @@ const UI = {
     UI.renderTop();
     UI.renderMap();
     UI.cam.wire();
-    /* Last line of defence against a stranded gesture transform. If no
-       fingers are down, #map must not be carrying a translate/scale — that
-       is the state that paints a black band beside the board. Cheap: a
-       string compare on a style property, and it runs only when the board
-       was already being rebuilt. */
-    if (!UI.cam._live && !UI.cam._pts.size) {
-      const svgEl = $('#map');
-      if (svgEl && svgEl.style.transform) svgEl.style.transform = '';
-    }
+    // The complete-world transform is the camera, and persists between turns.
     /* apply() forces a synchronous getBoundingClientRect AND rewrites viewBox
        — measured at 5-9ms, because rewriting viewBox makes the browser
        re-rasterise the whole SVG, turbulence filters included, regardless of
@@ -5776,9 +5773,6 @@ const UI = {
     _rect: null,
     _raf: 0,
     _warmRaf: 0,
-    _lastAt: 0,              /* timeStamp of the last event heard for the
-                                current gesture — see the staleness check in
-                                wire()'s pointerdown handler */
 
     /* live-gesture transform, in SCREEN px relative to the committed view */
     _live: false,
@@ -5786,27 +5780,17 @@ const UI = {
     _gs: 1, _tx: 0, _ty: 0,
     _traf: 0,
 
-    /* ---- why a transform and not the viewBox ----
-
-       Writing viewBox re-rasterises the whole board. The renderer paints two
-       full-map feTurbulence layers (landRelief, landFibre) and a third over the
-       sea, each under mix-blend-mode:overlay — procedural per-pixel noise on a
-       compositing path that cannot be cached. The browser holds that result
-       only while the paint is static; every viewBox write throws it away and
-       recomputes the lot. That was the second-long lag: the gesture ran ahead
-       of the screen, so a second pinch was already under way before the first
-       one landed.
-
-       So: while fingers are down we touch nothing but a CSS transform, which
-       the compositor applies to the raster it already has. The viewBox is
-       written exactly once, when the last finger lifts. */
+    /* The SVG contains the ENTIRE board, not a clipped viewport snapshot.
+       The stationary map-wrap clips that world surface. Transforming this
+       complete surface reveals real territory while reusing the compositor
+       layer; no capped preview and no expensive path repaint per pan. */
 
     rect() {
       const c = UI.cam;
       if (c._rect) return c._rect;
-      const svg = $('#map');
-      if (!svg) return null;
-      const r = svg.getBoundingClientRect();
+      const wrap = $('#map-wrap');
+      if (!wrap) return null;
+      const r = wrap.getBoundingClientRect();
       if (!r.width || !r.height) return null;
       c._rect = { left: r.left, top: r.top, width: r.width, height: r.height };
       return c._rect;
@@ -5854,16 +5838,10 @@ const UI = {
       return Math.max(MAP_W, MAP_H * A) / (h * A);
     },
 
-    /* The lowest k that keeps the viewBox inside the CANVAS on every axis.
-       Below this, on a portrait pane, the viewBox extends past where
-       anything is drawn at all — not even the sea rect, which only covers
-       the canvas — showing raw page background. This used to be the
-       hardcoded literal MIN (1), which is only actually safe on a
-       landscape pane; on a portrait phone "zoom all the way out" was never
-       safe, and both the fit-to-board button and repeated taps on zoom-out
-       walked straight into it. */
+    /* Overview fits the whole board. layerVoid paints the surrounding ocean
+       when a portrait viewport extends beyond the board's drawing bounds. */
     minK() {
-      return Math.max(UI.cam.MIN, UI.cam.fillK(MAP_H));
+      return UI.cam.MIN;
     },
 
     clampNow() {
@@ -5886,11 +5864,26 @@ const UI = {
     paint() {
       const c = UI.cam;
       const svg = $('#map');
+      if (c._live && c._base && c._rect) {
+        const b = c._base, r = c._rect;
+        const w = b.w / c._gs, h = b.h / c._gs;
+        c.k = b.k * c._gs;
+        c.cx = b.x - c._tx * b.w / (c._gs * r.width) + w / 2;
+        c.cy = b.y - c._ty * b.h / (c._gs * r.height) + h / 2;
+      }
       const v = c.clampNow();
       if (!svg || !v) return;
-      svg.setAttribute('viewBox',
+      svg.setAttribute('data-camera-view',
         (c.cx - v.w / 2).toFixed(2) + ' ' + (c.cy - v.h / 2).toFixed(2) + ' '
         + v.w.toFixed(2) + ' ' + v.h.toFixed(2));
+      const worldBox = '0 0 ' + MAP_W + ' ' + MAP_H;
+      if (svg.getAttribute('viewBox') !== worldBox) svg.setAttribute('viewBox', worldBox);
+      if (svg.style.width !== MAP_W + 'px') svg.style.width = MAP_W + 'px';
+      if (svg.style.height !== MAP_H + 'px') svg.style.height = MAP_H + 'px';
+      const scale = v.r.width / v.w;
+      const x = v.r.width / 2 - c.cx * scale;
+      const y = v.r.height / 2 - c.cy * scale;
+      svg.style.transform = `translate(${x}px,${y}px) scale(${scale})`;
       /* Used to hide .land-tex/.sea-tex above k=1.02 to make the commit paint
          cheaper. Measured: it saved ~1-2ms, and cost real texture on the board
          for as long as a player stayed zoomed in at all — which is most of
@@ -5943,6 +5936,12 @@ const UI = {
           c.k  = Math.max(c.minK(), Math.min(c.MAX, c.fillK(bb.height)));
           c.cx = bb.x + bb.width / 2;
           c.cy = bb.y + bb.height / 2;
+          // On a narrow screen, begin at the player's army, not empty ground.
+          const home = G.players.find(p => !AI.isAI(p.index) && p.championAt);
+          if (r.width < 600 && home && REGIONS[home.championAt]) {
+            c.cx = REGIONS[home.championAt].centre.x;
+            c.cy = REGIONS[home.championAt].centre.y;
+          }
         }
       }
       c.stale();
@@ -5987,6 +5986,7 @@ const UI = {
     /* ---- direct (non-gesture) zoom: buttons, wheel ---- */
     zoomAt(factor, clientX, clientY) {
       const c = UI.cam;
+      if (c._live) c.heal();
       const v = c.view();
       if (!v || !isFinite(factor) || factor <= 0) return;
       const k0 = c.k;
@@ -6034,18 +6034,7 @@ const UI = {
       c._base = { x: c.cx - v.w / 2, y: c.cy - v.h / 2, w: v.w, h: v.h, k: c.k };
       c._gs = 1; c._tx = 0; c._ty = 0;
       c._live = true;
-      /* Nothing is written to the element here on purpose.
-
-         This used to set will-change and add an is-gesturing class. Both were
-         one-off costs paid at the exact moment the gesture started: the first
-         promoted the whole board to a fresh GPU layer, and the second hid the
-         texture layers, which forced a full repaint. That is why a pinch was
-         slow to start and then perfectly smooth once moving — all the work was
-         at the front.
-
-         The layer is now promoted permanently in the stylesheet, so it already
-         exists, and the texture is left alone because nothing repaints during
-         a gesture anyway. begin() is now pure bookkeeping. */
+      // begin() records geometry; movement paints the live viewBox next frame.
     },
 
     /* keep the visible window inside the board while dragging, so nothing has
@@ -6077,7 +6066,7 @@ const UI = {
       c._ty = ay - (ay - c._ty) * ff;
       c._gs *= ff;
       c.clampLive();
-      c.pushTransform();
+      c.scheduleGesture();
     },
 
     gPan(dx, dy) {
@@ -6085,51 +6074,19 @@ const UI = {
       if (!c._live) return;
       c._tx += dx; c._ty += dy;
       c.clampLive();
-      c.pushTransform();
+      c.scheduleGesture();
     },
 
-    pushTransform() {
+    scheduleGesture() {
       const c = UI.cam;
       if (c._traf) return;
       c._traf = requestAnimationFrame(() => {
         c._traf = 0;
-        const svg = $('#map');
-        if (!svg || !c._live) return;
-        /* This paints a PREVIEW, not the map: #map's own viewBox clips
-           painting to whatever was visible at the moment of the last real
-           commit, so a CSS transform can only stretch/slide that already-
-           rasterised rectangle — it has no more picture to reveal beyond
-           its own edges, because nothing beyond them was ever painted. A
-           gesture that pans or zooms far in one continuous motion asks for
-           more than that rectangle has, and the wrap's own background
-           (plain sea-blue, no map) shows through wherever it runs out —
-           not a stuck or broken state, just a snapshot stretched past what
-           it contains. Reported by a real tester as the board "not
-           loading" / "not seamless" during exactly this: real gestures on
-           a phone routinely cover more distance in one motion than this
-           preview can survive.
-
-           _gs/_tx/_ty themselves stay exactly as computed — commit() reads
-           them at gesture-end and must still land on the precise position
-           the fingers actually indicated, uncapped. Only what gets PAINTED
-           here is bounded, so the preview holds a full, real-looking frame
-           once a sufficiently large gesture outruns it, instead of thinning
-           into blue — then snaps to the exact right place on release. */
-        const r = c._rect;
-        let vgs = c._gs, vtx = c._tx, vty = c._ty;
-        if (r) {
-          vgs = Math.max(0.75, Math.min(1.35, c._gs));
-          const maxT = 0.18;
-          vtx = Math.max(-r.width  * maxT, Math.min(r.width  * maxT, c._tx));
-          vty = Math.max(-r.height * maxT, Math.min(r.height * maxT, c._ty));
-        }
-        svg.style.transform =
-          'translate(' + vtx.toFixed(2) + 'px,' + vty.toFixed(2) + 'px) '
-          + 'scale(' + vgs.toFixed(5) + ')';
+        if (c._live) c.paint();
       });
     },
 
-    /* Fold the transform into the camera and repaint sharp, exactly once. */
+    /* Flush the last pending movement and release the fixed gesture baseline. */
     commit() {
       const c = UI.cam;
       if (!c._live) return;
@@ -6146,7 +6103,6 @@ const UI = {
       }
       c._gs = 1; c._tx = 0; c._ty = 0; c._base = null;
       if (c._traf) { cancelAnimationFrame(c._traf); c._traf = 0; }
-      if (svg) svg.style.transform = '';
       c.paint();                   /* cache survives; warm() refreshes it */
 
       /* Flush any board rebuild that arrived while the finger was down. The
@@ -6197,61 +6153,16 @@ const UI = {
          already false but a transform somehow survived (a rAF that landed
          after commit, a torn-down gesture), clear it unconditionally —
          this is the line that guarantees the black band cannot persist. */
-      const svg = $('#map');
-      if (svg && svg.style.transform) svg.style.transform = '';
       if (c._traf) { cancelAnimationFrame(c._traf); c._traf = 0; }
       c._pts.clear();
       c._mode = null; c._anchor = null; c._dist = 0; c._mid = null;
       c._moved = false; c._gs = 1; c._tx = 0; c._ty = 0; c._base = null;
-      c.armWatchdog(false);
     },
 
-    /* A gesture that has gone quiet for this long is over, whatever the
-       event stream claims. Refreshed on every pointer event, so it only
-       ever fires when events genuinely stopped arriving. */
-    _wd: 0,
-    armWatchdog(on) {
-      const c = UI.cam;
-      if (c._wd) { clearTimeout(c._wd); c._wd = 0; }
-      if (on) c._wd = setTimeout(() => {
-        c._wd = 0;
-        if (!c._live && !c._pts.size) return;
-        /* Silence alone never proves the finger lifted — a drag paused to
-           read a territory name, or a pinch paused to judge the zoom,
-           produces zero pointermove too, since real touchscreens only fire
-           pointermove when the reported coordinate actually changes. The
-           watchdog used to treat 1200ms of quiet as proof of an abandoned
-           gesture and call heal() unconditionally — which purges _pts/
-           _mode/_anchor out from under a finger that never lifted, so its
-           next pointermove failed the `_pts.has()` guard in the move
-           handler and the board stopped responding for the rest of that
-           touch, recovering only once the player lifted and touched again.
-           Give a genuinely still finger real room: as long as some real
-           pointer event landed within the last 6s (_lastAt, already
-           refreshed on every pointerdown/pointermove), just stay armed and
-           leave the live transform and tracked pointers untouched — there
-           is nothing visually wrong while a finger is merely paused. Only
-           past 6s of TOTAL silence does this fall through to heal(), which
-           is what actually recovers a gesture the OS silently dropped —
-           the rarer case this watchdog exists for. */
-        if (performance.now() - c._lastAt < 6000) { c.armWatchdog(true); return; }
-        c.heal();
-      }, 1200);
-    },
-
-    /* "Fit to board" — zoom out as far as safely possible (minK(), never
-       the literal MIN, which is not actually safe on a portrait pane — see
-       minK's own comment) and centre on the map's own content, not the
-       canvas. This used to hardcode k:1 / canvas-centre unconditionally,
-       which is exactly the state rule 9 in CLAUDE.md is about: on a
-       portrait phone that shows the viewBox extending past the canvas on
-       every axis, revealing raw page background, not sea. Any player who
-       tapped this button after the zoom-default fix landed in it directly,
-       because zooming in from the new default (which this button becomes
-       visible for) is exactly when someone reaches for "show me
-       everything." */
+    /* Full-board overview, with surrounding ocean on tall screens. */
     reset() {
       const c = UI.cam;
+      c.heal();
       const bb = c.contentBounds();
       c.k  = c.minK();
       c.cx = bb.x + bb.width / 2;
@@ -6311,35 +6222,13 @@ const UI = {
            territory. touch-action:none already declines browser panning for
            single-finger drags, so the first pointerdown needs nothing here;
            only the pinch does. */
-        if (c._pts.size >= 1) e.preventDefault();
+        if (c._pts.size >= 1 && !e.isPrimary) e.preventDefault();
 
-        /* SELF-HEALING.
-
-           A phantom pointer can never be detected by "_pts is empty" — that
-           is exactly the state an abandoned one prevents from ever
-           happening. A gesture ends here on pointerup/pointercancel/
-           lostpointercapture; if the OS drops all three for one finger (a
-           system gesture stealing the touch, an interrupted capture, the app
-           losing focus mid-pinch — none reproducible from a synthetic event
-           in this environment), that finger's entry sits in _pts forever,
-           because nothing is ever coming to remove it.
-
-           The signal that actually works is TIME. Two fingers of one real
-           pinch land within milliseconds of each other, and an ongoing
-           gesture keeps refreshing _lastAt on every move. So: a previously
-           unseen pointerId landing more than a quarter-second after the
-           gesture last made a sound is not finger two of anything — it is a
-           new, unrelated touch arriving on top of dead bookkeeping. Left
-           alone, that stale entry lets a plain tap get read as half of a
-           phantom pinch (ignored — "doesn't register"), or leaves capture
-           stuck on #map-wrap so a click meant to dismiss a popover's backdrop
-           never reaches it (stuck open — "the whole map gets shaded"). */
-        const now = e.timeStamp;
-        if (!c._pts.has(e.pointerId) && c._pts.size > 0 && (now - c._lastAt) > 250) {
+        /* A new primary contact starts a new gesture. Time cannot distinguish
+           a stale contact from a deliberately delayed second finger. */
+        if (e.isPrimary && c._pts.size > 0) {
           c.heal();                  /* one recovery path, not a second copy */
         }
-        c._lastAt = now;
-        c.armWatchdog(true);
 
         c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (c._pts.size === 1) {
@@ -6397,8 +6286,6 @@ const UI = {
          that starts elsewhere on the page is still ignored. */
       addEventListener('pointermove', e => {
         if (!c._pts.has(e.pointerId)) return;
-        c._lastAt = e.timeStamp;     /* the gesture is alive; see staleness check above */
-        c.armWatchdog(true);
         c._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
         if (c._mode === 'pinch') {
@@ -6458,7 +6345,6 @@ const UI = {
           if (!c._pts.size && c._live) c.heal();
           return;
         }
-        c.armWatchdog(c._pts.size > 0);
 
         if (c._pts.size === 1) {
           /* THE LIFT JUMP. The anchor held where the FIRST finger landed, so
@@ -6500,7 +6386,7 @@ const UI = {
 
         if (c._pts.size === 0) {
           release();
-          c.commit();              /* the one and only viewBox write */
+          c.commit();              /* flush the final movement */
           c._mode = null;
           c._anchor = null;
           c._dist = 0;
@@ -6594,6 +6480,7 @@ const UI = {
          reliable signal for this specific case on mobile; window resize is
          the fallback for everything else (rotation, browser chrome, etc). */
       const onViewportChange = () => {
+        if (G) UI.renderTop();
         /* Treat this exactly like every finger just lifted — because for the
            gesture's purposes, it did: nothing is coming to move it further.
            commit() alone only ends the CAMERA side (geometry, _live); it
@@ -6604,19 +6491,26 @@ const UI = {
            corrupted the NEXT gesture: a real two-finger pinch paired the
            stale entry with only one real finger instead of the two that
            actually landed, so zooming did nothing. */
-        if (c._live) {
-          release();
-          c.commit();
-          c._pts.clear();
-          c._mode = null; c._anchor = null; c._dist = 0; c._mid = null;
-          c._moved = false;
-        }
+        if (c._live || c._pts.size) c.heal();
         c.stale();
         c.paint();
       };
       addEventListener('resize', onViewportChange);
       if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', onViewportChange);
+      }
+      // Hint text can change the pane height without a window resize. Keep
+      // the displayed viewBox and gesture geometry in agreement after layout.
+      if (window.ResizeObserver) {
+        let observedWidth = 0, observedHeight = 0;
+        c._resizeObserver = new ResizeObserver(() => {
+          const r = wrap.getBoundingClientRect();
+          if (!r.width || !r.height) return;
+          if (r.width === observedWidth && r.height === observedHeight) return;
+          observedWidth = r.width; observedHeight = r.height;
+          onViewportChange();
+        });
+        c._resizeObserver.observe(wrap);
       }
     }
   },
