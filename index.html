@@ -2047,6 +2047,40 @@ button:active:not(:disabled) { transform: scale(.97); }
 }
 .pv-foot.top { flex-wrap: wrap; }
 
+
+/* ---------------- sliders driven by UI.slide ----------------
+   The native input keeps drawing the rail and thumb but takes no pointer
+   input of its own; the zone around it does, anywhere inside it. */
+[data-slide] { touch-action: none; cursor: pointer; -webkit-user-select: none; user-select: none; }
+[data-slide] input[type="range"] { pointer-events: none; }
+.slide-zone { padding: 2px 0; }
+.pv--strip .as-range::-webkit-slider-thumb { width: 30px; height: 30px; margin-top: -12.5px; }
+.pv--strip .as-range::-moz-range-thumb { width: 30px; height: 30px; }
+.r2-count::-webkit-slider-thumb { width: 30px; height: 30px; }
+.r2-count::-moz-range-thumb { width: 30px; height: 30px; }
+[data-slide].is-sliding input[type="range"]::-webkit-slider-thumb { background: #e3a858; transform: scale(1.12); }
+[data-slide].is-sliding input[type="range"]::-moz-range-thumb { background: #e3a858; transform: scale(1.12); }
+
+/* ---------------- rivals' actions on the board (Juice.acts) ----------------
+   Sized in board units so they hold up in the far view, where a unit is about
+   a quarter of a pixel. Resting state is fully visible; a timer removes them. */
+.fx-act { pointer-events: none; animation: fx-act-in .22s ease both; }
+@keyframes fx-act-in { from { opacity: 0; } to { opacity: 1; } }
+.fx-arrow { fill: none; stroke: var(--fc, #fff); stroke-width: 15; stroke-linecap: round; }
+.fx-arrow-head { fill: var(--fc, #fff); stroke: none; }
+.fx-arrow-edge { fill: #0b0d13; stroke: #0b0d13; stroke-width: 27; stroke-linecap: round; stroke-linejoin: round; }
+polygon.fx-arrow-edge { stroke-width: 12; }
+.fx-act-attack .fx-arrow { stroke-width: 19; stroke-dasharray: 30 22; }
+.fx-act-attack .fx-arrow-edge { fill: #f4efe2; stroke: #f4efe2; }
+.fx-act-attack path.fx-arrow-edge { stroke-width: 31; }
+.fx-label {
+  font-family: var(--f-mono); font-weight: 700; font-size: 44px; text-anchor: middle;
+  fill: var(--fc, #fff); paint-order: stroke; stroke: #0b0d13; stroke-width: 11px; stroke-linejoin: round;
+  pointer-events: none; animation: fx-act-in .22s ease both;
+}
+.fx-label-build { fill: var(--bronze); }
+.fx-label-held { fill: #f4efe2; }
+
 </style>
 </head>
 <body>
@@ -2082,7 +2116,7 @@ button:active:not(:disabled) { transform: scale(.97); }
       <button id="setup-howto" class="title-btn is-quiet" type="button">
         <b>How to play</b><small>Gods, hosts and ground</small></button>
     </div>
-    <div class="title-foot">v0.2 · <span id="build-id">built 2026-10-08 13:24 UTC</span></div>
+    <div class="title-foot">v0.2 · <span id="build-id">built 2026-10-08 23:12 UTC</span></div>
   </div>
 
   <!-- Quick match: a patron and a difficulty, nothing else. -->
@@ -5547,33 +5581,99 @@ const MapView = {
      fortress with corner towers and a banner. Drawn as single crenellated
      outlines rather than stacked rectangles, with darker openings cut back
      in so the silhouette reads as masonry at map scale. */
-  holdingShape(tier) {
-    const gold = '#c98f47', dark = '#0d0f16', shade = '#8c6330';
-    const s = `stroke="${dark}" stroke-width="1.2" stroke-linejoin="round"`;
+  /* Holdings, sculpted in the same language as the troop miniatures: an ink
+     outline, lit ivory stone on the face toward the viewer and a shaded plane
+     on the right, bronze fittings, and the OWNER'S colour on roofs and
+     banners — where the old marks were one flat gold silhouette that said
+     "castle" but not whose, and sat on the board like a sticker beside the
+     figures.
+
+     The three tiers are three different buildings, not one building scaled:
+       1  a watchtower behind a timber palisade
+       2  a stone keep with flanking turrets and a hung banner
+       3  a citadel — spired great tower, curtain wall, gilded gate, pennant
+     so a tier reads from its silhouette alone, at a glance, without counting
+     crenellations.
+
+     Kept inside x -15..15, y -21..9: partHolding places the income figure at
+     y=19 and the champion and defence flag sit either side. */
+  holdingShape(tier, colour) {
+    const ink = '#111a23', ivory = '#f1e4c7', shade = '#a99f88', deep = '#7d745f';
+    const bronze = '#c99551', bright = '#e7f1ed', wood = '#8e613d', woodD = '#654b34';
+    const cloth = colour || '#c98f47';
+    const dark = mix(cloth, '#15202c', .45), light = mix(cloth, '#fff1d4', .62);
+    const wrap = body => `<g stroke="${ink}" stroke-width=".95" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cy="8.3" rx="${tier === 1 ? 10 : tier === 2 ? 15 : 16}" ry="2.3" fill="#070f19" fill-opacity=".5" stroke="none"/>
+      ${body}</g>`;
+    const arch = (x, y, w, h) => `<path d="M${x - w / 2},${y} V${y - h + w / 2} Q${x - w / 2},${y - h} ${x},${y - h} Q${x + w / 2},${y - h} ${x + w / 2},${y - h + w / 2} V${y} Z" fill="${ink}" stroke="none"/>`;
+    const slit = (x, y) => `<path d="M${x},${y} v2.6" stroke="${ink}" stroke-width="1.1"/>`;
 
     if (tier === 1) {
-      return `<path d="M-5.5,9 L-5.5,-8 h2.4 v-2.6 h2.2 v2.6 h1.8 v-2.6 h2.2 v2.6 h2.4 L7.5,9 Z"
-                    fill="${gold}" ${s}/>
-              <path d="M-1.2,9 L-1.2,3.2 Q-1.2,1.4 0.6,1.4 Q2.4,1.4 2.4,3.2 L2.4,9 Z" fill="${dark}"/>
-              <rect x="-3.4" y="-4.6" width="2.4" height="3" fill="${dark}"/>`;
+      return wrap(`
+        <path d="M-9,8 V2.6 l1.5,-1.9 l1.5,1.9 l1.5,-1.9 l1.5,1.9 V8 Z" fill="${wood}"/>
+        <path d="M4,8 V2.6 l1.5,-1.9 l1.5,1.9 l1.5,-1.9 l1.5,1.9 V8 Z" fill="${woodD}"/>
+        <path d="M-7.5,3 V8 M-4.5,3 V8 M5.5,3 V8 M8.5,3 V8" stroke="${ink}" stroke-width=".45"/>
+        <path d="M-4.4,8 V-5.4 H3 V8 Z" fill="${ivory}"/>
+        <path d="M3,-5.4 L5.4,-6.4 V7 L3,8 Z" fill="${shade}"/>
+        <path d="M-4.4,-1.2 H3 M-4.4,3 H3" stroke="${shade}" stroke-width=".5"/>
+        <path d="M-5.6,-5.4 H3.6 L5.9,-6.5 L1.2,-12.6 Z" fill="${dark}"/>
+        <path d="M-5.6,-5.4 L-1,-12.4 L3.6,-5.4 Z" fill="${cloth}"/>
+        <path d="M-3.9,-6.4 L-1,-10.9" fill="none" stroke="${light}" stroke-width=".6"/>
+        ${arch(-.7, 8, 3, 4.6)}
+        ${slit(-.7, -3.6)}
+        <circle cx="-1" cy="-12.6" r=".9" fill="${bronze}"/>`);
     }
 
     if (tier === 2) {
-      return `<path d="M-13,9 L-13,0 h2.2 v-2.2 h2.2 v2.2 h3 v-9.4 h2.2 v-2.6 h2 v2.6 h1.6 v-2.6 h2 v2.6 h2.2 v9.4
-                       h3 v-2.2 h2.2 v2.2 h2.2 L13,9 Z" fill="${gold}" ${s}/>
-              <path d="M-2.2,9 L-2.2,3 Q-2.2,1 0,1 Q2.2,1 2.2,3 L2.2,9 Z" fill="${dark}"/>
-              <rect x="-1.4" y="-6.6" width="2.8" height="3.2" fill="${dark}"/>
-              <path d="M-13,3.4 H13" stroke="${shade}" stroke-width="1"/>`;
+      return wrap(`
+        <path d="M-13.2,8 V1.4 h1.9 v-1.6 h1.9 v1.6 h1.9 v-1.6 h1.9 v1.6 H7 v-1.6 h1.9 v1.6 h1.9 v-1.6 h1.9 V8 Z" fill="${ivory}"/>
+        <path d="M5.6,1.4 H12.7 V8 H5.6 Z" fill="${shade}" stroke="none"/>
+        <path d="M-13.2,4.6 H12.7" stroke="${shade}" stroke-width=".5"/>
+        <path d="M-14.2,8 V-3.4 H-9.6 V8 Z" fill="${ivory}"/>
+        <path d="M-11.2,-3.4 H-9.6 V8 H-11.2 Z" fill="${shade}" stroke="none"/>
+        <path d="M-15,-3.4 H-8.8 L-11.9,-8.8 Z" fill="${cloth}"/>
+        <path d="M-11.9,-8.8 L-8.8,-3.4 H-10.6 Z" fill="${dark}" stroke="none"/>
+        <path d="M9.6,8 V-3.4 H14.2 V8 Z" fill="${shade}"/>
+        <path d="M8.8,-3.4 H15 L11.9,-8.8 Z" fill="${cloth}"/>
+        <path d="M11.9,-8.8 L15,-3.4 H13 Z" fill="${dark}" stroke="none"/>
+        ${slit(-12.4, -1)}${slit(11.9, -1)}
+        <path d="M-5.4,8 V-8.4 h2 v-2 h2.1 v2 h2.1 v-2 h2.1 v2 h2 V8 Z" fill="${ivory}"/>
+        <path d="M4.9,-8.4 L7.2,-9.4 V7 L4.9,8 Z" fill="${shade}"/>
+        <path d="M-5.4,-4.6 H4.9" stroke="${shade}" stroke-width=".5"/>
+        <path d="M-2.1,-7 H1.7 V-1.6 L-.2,-3 L-2.1,-1.6 Z" fill="${cloth}"/>
+        <path d="M-.2,-7 V-3" stroke="${light}" stroke-width=".55"/>
+        ${arch(-.2, 8, 4.2, 6)}
+        <path d="M-1.4,3.4 V8 M-.2,2.6 V8 M1,3.4 V8" stroke="${bronze}" stroke-width=".45"/>`);
     }
 
-    return `<path d="M-15,9 L-15,-3 h2.4 v-2.4 h2.4 v2.4 h2.6 v-7.6 h2.2 v-2.6 h2 v2.6 h1.8 v-2.6 h2 v2.6 h2.2 v7.6
-                     h2.6 v-2.4 h2.4 v2.4 h2.4 L15,9 Z" fill="${gold}" ${s}/>
-            <path d="M-2.4,9 L-2.4,2.4 Q-2.4,0.2 0,0.2 Q2.4,0.2 2.4,2.4 L2.4,9 Z" fill="${dark}"/>
-            <rect x="-1.4" y="-8.4" width="2.8" height="3.2" fill="${dark}"/>
-            <rect x="-12.4" y="0.6" width="2.2" height="2.8" fill="${dark}"/>
-            <rect x="10.2" y="0.6" width="2.2" height="2.8" fill="${dark}"/>
-            <path d="M-15,1 H15" stroke="${shade}" stroke-width="1"/>
-            <path d="M0,-13.6 V-21 L9,-18.4 L0,-15.8" fill="${gold}" ${s}/>`;
+    return wrap(`
+      <path d="M-15,8 V2 h1.8 v-1.6 h1.8 v1.6 h1.8 v-1.6 h1.8 v1.6 H7.2 v-1.6 H9 v1.6 h1.8 v-1.6 h1.8 v1.6 H15 V8 Z" fill="${ivory}"/>
+      <path d="M6,2 H15 V8 H6 Z" fill="${shade}" stroke="none"/>
+      <path d="M-15,5 H15" stroke="${shade}" stroke-width=".5"/>
+      <path d="M-15.4,8 V-5.6 H-10.4 V8 Z" fill="${ivory}"/>
+      <path d="M-12,-5.6 H-10.4 V8 H-12 Z" fill="${shade}" stroke="none"/>
+      <path d="M-16.2,-5.6 H-9.6 L-12.9,-12.4 Z" fill="${cloth}"/>
+      <path d="M-12.9,-12.4 L-9.6,-5.6 H-11.5 Z" fill="${dark}" stroke="none"/>
+      <path d="M10.4,8 V-5.6 H15.4 V8 Z" fill="${shade}"/>
+      <path d="M9.6,-5.6 H16.2 L12.9,-12.4 Z" fill="${cloth}"/>
+      <path d="M12.9,-12.4 L16.2,-5.6 H14.2 Z" fill="${dark}" stroke="none"/>
+      ${slit(-13.3, -3)}${slit(12.9, -3)}
+      <path d="M-7.6,8 V-4 h1.7 v-1.7 h1.7 v1.7 H4.2 v-1.7 h1.7 v1.7 h1.7 V8 Z" fill="${ivory}"/>
+      <path d="M5,-4 H7.6 V8 H5 Z" fill="${shade}" stroke="none"/>
+      <path d="M-4.2,-4 V-12.2 H3.6 V-4 Z" fill="${ivory}"/>
+      <path d="M3.6,-12.2 L5.6,-13.1 V-4.9 L3.6,-4 Z" fill="${shade}"/>
+      <path d="M-5.4,-12.2 H4.6 L6.6,-13.2 L.6,-20.6 Z" fill="${dark}"/>
+      <path d="M-5.4,-12.2 L-.4,-20.4 L4.6,-12.2 Z" fill="${cloth}"/>
+      <path d="M-3.6,-13.2 L-.5,-18.4" fill="none" stroke="${light}" stroke-width=".6"/>
+      <path d="M-.4,-20.4 V-23.4" stroke="${bronze}" stroke-width=".8"/>
+      <path d="M-.4,-23.6 L4.4,-22.3 L-.4,-21 Z" fill="${bronze}" stroke-width=".6"/>
+      <path d="M-1.9,-10.4 H1.3 V-6.2 L-.3,-7.4 L-1.9,-6.2 Z" fill="${cloth}"/>
+      <path d="M-5.6,-1 H5 " stroke="${bronze}" stroke-width=".8"/>
+      ${arch(-.3, 8, 5, 7)}
+      <path d="M-2.8,8 V3.2 Q-2.8,1 -.3,1 Q2.2,1 2.2,3.2 V8" fill="none" stroke="${bronze}" stroke-width=".7"/>
+      <path d="M-1.5,3.2 V8 M-.3,2.4 V8 M.9,3.2 V8" stroke="${bronze}" stroke-width=".45"/>
+      <circle cx="-5.2" cy="1.6" r=".7" fill="${bright}" stroke="none"/>
+      <circle cx="4" cy="1.6" r=".7" fill="${bright}" stroke="none"/>`);
   },
 
   /* What this territory actually rolls on defence, and why — so the player
@@ -5929,7 +6029,7 @@ const MapView = {
     return `<g class="holding-mark" data-tip="${tip.replace(/"/g, '&quot;')}"
       transform="translate(${c.x + 31},${c.y - 34})">
       <rect x="-13" y="-20" width="26" height="40" fill="transparent"/>
-      ${MapView.holdingShape(rs.holding)}
+      <g transform="translate(0,-1.5) scale(1.2)">${MapView.holdingShape(rs.holding, owner !== null ? G.players[owner].colour.hex : '#8b8b96')}</g>
       <text class="${cls}" x="0" y="19">${label}</text></g>`;
   },
 
@@ -5982,7 +6082,7 @@ const MapView = {
     if (d.dice > 2) {
       const tip = '<b>Rolls ' + d.dice + ' defence dice</b><br>' + d.notes.join(' &middot; ');
       // Defensive rating belongs beside the Holding, not on another unit's count.
-      out += `<g class="def-flag" data-tip="${tip}" transform="translate(${c.x + 62},${c.y - 32})">
+      out += `<g class="def-flag" data-tip="${tip}" transform="translate(${c.x + 66},${c.y - 32})">
         <rect x="-12" y="-9" width="24" height="17" rx="2" fill="rgba(10,12,18,.9)"
               stroke="#67a89a" stroke-width="1.2"/>
         <text x="0" y="3.5" class="def-n">${d.dice}D</text></g>`;
@@ -6500,6 +6600,95 @@ const UI = {
     }
   },
 
+  /* ---------------- sliders ----------------
+
+     The two strip sliders (the six actions, and how many hosts to raise) were
+     native <input type="range"> elements, and on a phone they did not slide.
+     Two reasons, both structural:
+
+       - a native range only starts a drag if the touch lands on its 24px
+         thumb. A press anywhere else on the rail did nothing on iOS.
+       - with step="1" and six stops, the thumb can only ever sit at six
+         places. It stayed put until the finger had travelled half a stop
+         (~34px) and then jumped, which reads as a swipe, not a slide.
+
+     So the native element is kept for what it is good at — the track, the
+     thumb, keyboard and screen-reader support — and is driven by this instead.
+     Any press inside a [data-slide] zone grabs the slider wherever it lands;
+     while the finger is down the value is CONTINUOUS (step="any"), so the
+     thumb sits exactly under the finger, and consumers read Math.round() of
+     it; on release it settles onto the nearest stop.
+
+     Listeners are bound once, at window level in the capture phase, for the
+     same reason the camera's are (CLAUDE.md rule 12): a drag that wanders off
+     the rail must keep delivering moves. The input itself has pointer-events
+     switched off in the stylesheet, so the native handling cannot fight it. */
+  slide: {
+    on: null,
+    _wired: false,
+    THUMB: 30,
+
+    wire() {
+      const S = UI.slide;
+      if (S._wired) return;
+      S._wired = true;
+      document.addEventListener('pointerdown', S.down, true);
+      window.addEventListener('pointermove', S.move, true);
+      window.addEventListener('pointerup', S.up, true);
+      window.addEventListener('pointercancel', S.up, true);
+      window.addEventListener('blur', S.up, true);
+    },
+
+    valueAt(el, x) {
+      const r = el.getBoundingClientRect();
+      const T = UI.slide.THUMB;
+      const f = Math.max(0, Math.min(1, (x - r.left - T / 2) / Math.max(1, r.width - T)));
+      const min = +el.min || 0, max = +el.max || 0;
+      return min + f * (max - min);
+    },
+
+    down(e) {
+      const zone = e.target.closest && e.target.closest('[data-slide]');
+      if (!zone || UI.slide.on) return;
+      const el = zone.querySelector('input[type="range"]');
+      if (!el || el.disabled || +el.max <= +el.min) return;
+      e.preventDefault();
+      UI.slide.on = { el, id: e.pointerId, last: null };
+      el.dataset.dragging = '1';
+      el.step = 'any';
+      zone.classList.add('is-sliding');
+      UI.slide.move(e);
+    },
+
+    move(e) {
+      const o = UI.slide.on;
+      if (!o || e.pointerId !== o.id) return;
+      const v = UI.slide.valueAt(o.el, e.clientX);
+      o.el.value = v;
+      const stop = Math.round(v);
+      if (stop !== o.last) {
+        const first = o.last === null;
+        o.last = stop;
+        o.el.dispatchEvent(new Event('input', { bubbles: true }));
+        if (!first && window.Juice) { Juice.play('tap'); Juice.buzz(6); }
+      }
+    },
+
+    up(e) {
+      const o = UI.slide.on;
+      if (!o || (e && e.pointerId !== undefined && e.pointerId !== o.id)) return;
+      UI.slide.on = null;
+      const zone = o.el.closest('[data-slide]');
+      if (zone) zone.classList.remove('is-sliding');
+      delete o.el.dataset.dragging;
+      o.el.step = '1';
+      o.el.value = o.last === null ? Math.round(+o.el.value) : o.last;
+      /* one last event now that the value is a whole stop again, so whatever
+         was skipping writes during the drag settles */
+      o.el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  },
+
   /* the board is drawn by MapView (js/render-map.js); these keep the old
      call sites working */
   renderMap()                  { MapView.renderMap(); },
@@ -6529,7 +6718,7 @@ const UI = {
 
   troopShape(u, c)             { return MapView.troopShape(u, c); },
   troopChip(u, c)              { return MapView.troopChip(u, c); },
-  holdingShape(t)              { return MapView.holdingShape(t); },
+  holdingShape(t, c)           { return MapView.holdingShape(t, c); },
   glyph(t)                     { return MapView.glyph(t); },
   defenceRating(id)            { return MapView.defenceRating(id); },
 
@@ -6552,6 +6741,7 @@ const UI = {
   render() {
     if (!G) return;
     if (UI._pending) { cancelAnimationFrame(UI._pending); UI._pending = 0; }
+    UI.slide.wire();
     UI.renderTop();
     UI.renderMap();
     UI.cam.wire();
@@ -7583,8 +7773,10 @@ const UI = {
         '<div class="st-top"><span class="st-where">' + esc(def.name)
       + '  <em class="' + (left ? '' : 'spent') + '">' + left + ' left</em></span></div>'
       + '<div class="st-icons">' + icons + '</div>'
+      + '<div class="slide-zone" data-slide>'
       + '<input type="range" class="as-range" min="0" max="' + (acts.length - 1) + '"'
       + ' step="1" value="' + start + '" aria-label="Choose an action">'
+      + '</div>'
       + '<div class="st-foot">'
       + '  <button class="st-x" type="button" aria-label="Cancel">×</button>'
       + '  <span class="st-read"><b class="as-name"></b><i class="as-why"></i></span>'
@@ -7617,7 +7809,9 @@ const UI = {
           show(i);
         };
 
-        range.addEventListener('input', () => show(+range.value));
+        /* Math.round: mid-drag the value is continuous (see UI.slide) */
+        const at = () => Math.max(0, Math.min(acts.length - 1, Math.round(+range.value)));
+        range.addEventListener('input', () => show(at()));
         ics.forEach(b => b.addEventListener('click', () => select(+b.dataset.i)));
         card.querySelector('.st-x').addEventListener('click', UI.pv.close);
         card.querySelector('.st-i').addEventListener('click', e => {
@@ -7626,7 +7820,7 @@ const UI = {
         });
 
         ok.addEventListener('click', () => {
-          const a = acts[+range.value];
+          const a = acts[at()];
           /* A refusal must NOT close or repaint: the answer to "why not" is
              destroyed by the very render that would replace the control. */
           if (a.why) { UI.fx.refuse(ok, a.why); return; }
@@ -7961,7 +8155,12 @@ const UI = {
     let tip;
 
     if (AI.isAI(pi)) {
-      tip = `<b>${esc(p.name)}</b> is taking ${isReaction ? 'a Reaction' : 'the Turn'}. The chronicle (top right) records every move.`;
+      /* What the rival is doing right now, in their colour — fed by
+         Juice.narration, which reads it off the chronicle as it happens. */
+      const n = window.Juice && Juice.narration;
+      tip = (n && n.pi === pi)
+        ? `<b style="color:${p.colour.hex}">${esc(p.name)}</b> ${esc(n.text)}`
+        : `<b style="color:${p.colour.hex}">${esc(p.name)}</b> is taking ${isReaction ? 'a Reaction' : 'the Turn'}…`;
     } else if (UI.mode === 'march') {
       tip = `Dashed borders are legal destinations. <b>Any territory touching this one can be attacked</b>; you can move hosts <b>anywhere across your own connected territory</b> in one action, and attack any enemy touching the region you set out from.`;
     } else if (!id) {
@@ -8363,7 +8562,7 @@ const UI = {
       + '  <div class="rz-kinds">' + chips + '</div>'
       + '  <div class="rz-amt">'
       + '    <div class="rz-note"></div>'
-      + '    <div class="rz-slide">'
+      + '    <div class="rz-slide" data-slide>'
       + '      <input type="range" class="r2-count" min="0" max="1" step="1" value="0"'
       + '             aria-label="How many to raise">'
       + '      <div class="rz-ticks" aria-hidden="true"></div>'
@@ -8451,7 +8650,10 @@ const UI = {
           const cap = capFor(sel);
           if (+count.max !== cap) count.max = cap;
           const want = Math.min(order[m.u] || 0, cap);
-          if (+count.value !== want) count.value = want;
+          /* never write the value under a dragging finger: mid-drag it is
+             continuous, and snapping it back to a whole number here is what
+             would make the thumb stutter */
+          if (!count.dataset.dragging && +count.value !== want) count.value = want;
           count.disabled = cap === 0;
           amtN.textContent = want ? '+' + want : '0';
           amtN.classList.toggle('has', want > 0);
@@ -8470,9 +8672,9 @@ const UI = {
         count.addEventListener('input', () => {
           const m = meta[sel];
           if (m.hard) { count.value = 0; return; }
-          const v = Math.max(0, Math.min(capFor(sel), +count.value));
+          const v = Math.max(0, Math.min(capFor(sel), Math.round(+count.value)));
           if (v > 0) order[m.u] = v; else delete order[m.u];
-          if (+count.value !== v) count.value = v;
+          if (!count.dataset.dragging && +count.value !== v) count.value = v;
           sync();
         });
 
@@ -9490,12 +9692,84 @@ const UI = {
       Juice.flashes.push({ id, colour, kind: kind || 'take', start: 0 });
     },
 
+    /* ---------------- rivals' actions, drawn on the board ----------------
+
+       A rival's Turn used to be a list of chronicle lines and a board that
+       changed while you were reading them. Every action an AI takes is now
+       SHOWN where it happens: an arrow for a march, a heavier one for an
+       assault that stays up for as long as the fight lasts, and a label on
+       the ground for hosts raised, a Holding built, an assault repelled.
+
+       Two sources, neither of them the engine. Marches and assaults come
+       from wrapping AI.bestAction (the one call per action, which carries
+       the source and target the chronicle text does not). Everything else
+       comes off the chronicle in pump(), like the sounds do.
+
+       Unlike the capture flash these are NOT fade-outs: their resting state
+       is fully visible and a timer removes them, so they work with reduced
+       motion on (CLAUDE.md, "the preview pane reports reduced-motion"). */
+
+    acts: [],            // { kind, src, to, id, text, colour, pi, until }
+    narration: null,     // { pi, text } — shown in the hint bar
+    ACT_MS: 1700,
+    _actTimer: 0,
+
+    hold() { return Math.max(Juice.ACT_MS, (AI.delay || 0) + 500); },
+
+    sawAct(pi, act) {
+      if (!act || act.kind !== 'move' || !REGIONS[act.src] || !REGIONS[act.to]) return;
+      const colour = G.players[pi].colour.hex;
+      /* a new move replaces this player's previous arrow */
+      Juice.acts = Juice.acts.filter(a => !(a.pi === pi && (a.kind === 'move' || a.kind === 'attack')));
+      Juice.acts.push({ kind: act.hostile ? 'attack' : 'move', src: act.src, to: act.to,
+                        colour, pi, until: Date.now() + Juice.hold() });
+    },
+
+    label(id, text, colour, pi, tone) {
+      if (!id || !REGIONS[id]) return;
+      Juice.acts = Juice.acts.filter(a => !(a.kind === 'label' && a.id === id));
+      Juice.acts.push({ kind: 'label', id, text, colour, pi, tone: tone || '',
+                        until: Date.now() + Juice.hold() });
+    },
+
+    actsMarkup(now) {
+      const fighting = G.pendingCombat && !G.pendingCombat.finished ? G.pendingCombat : null;
+      Juice.acts = Juice.acts.filter(a =>
+        a.until > now || (a.kind === 'attack' && fighting && fighting.attacker === a.pi && fighting.target === a.to));
+      return Juice.acts.map(a => {
+        if (a.kind === 'label') {
+          const c = REGIONS[a.id].centre;
+          /* clear of the far view's crown, which sits where the label would */
+          const crowned = REGIONS[a.id].type === 'throne' ||
+            G.players.some(p => !p.surrendered && !p.championDead && p.championAt === a.id);
+          return '<text class="fx-label' + (a.tone ? ' fx-label-' + a.tone : '') + '" x="' + c.x
+            + '" y="' + (c.y - (crowned ? 104 : 54)) + '" style="--fc:' + a.colour + '">' + a.text + '</text>';
+        }
+        const p = REGIONS[a.src].centre, q = REGIONS[a.to].centre;
+        const dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len, uy = dy / len;
+        const pad = Math.min(46, len * 0.22), head = a.kind === 'attack' ? 40 : 32;
+        const x1 = p.x + ux * pad, y1 = p.y + uy * pad;
+        const xt = q.x - ux * pad, yt = q.y - uy * pad;              // the tip
+        const xb = xt - ux * head, yb = yt - uy * head;              // base of the head
+        const w = head * 0.56;
+        const tri = [xt, yt, xb - uy * w, yb + ux * w, xb + uy * w, yb - ux * w]
+          .map(n => n.toFixed(1)).join(' ');
+        const d = 'M' + x1.toFixed(1) + ',' + y1.toFixed(1) + ' L' + xb.toFixed(1) + ',' + yb.toFixed(1);
+        return '<g class="fx-act fx-act-' + a.kind + '" style="--fc:' + a.colour + '">'
+          + '<path class="fx-arrow-edge" d="' + d + '"/><polygon class="fx-arrow-edge" points="' + tri + '"/>'
+          + '<path class="fx-arrow" d="' + d + '"/><polygon class="fx-arrow-head" points="' + tri + '"/>'
+          + '</g>';
+      }).join('');
+    },
+
     /* Re-applied after every board repaint: renderMap replaces the territory
        groups, so an overlay that lived inside them would be thrown away
        mid-flash. A negative animation-delay resumes it where it was. */
     paintFlashes() {
       const svg = document.getElementById('map');
-      if (!svg || !Juice.flashes.length) return;
+      if (!svg || typeof G === 'undefined' || !G) return;
+      if (!Juice.flashes.length && !Juice.acts.length && !svg.querySelector('#fx-layer')) return;
       if (UI.modalOpen && UI.modalOpen()) return;       // wait until it can be seen
       const now = Date.now();
       Juice.flashes = Juice.flashes.filter(f => !f.start || now - f.start < Juice.FLASH_MS);
@@ -9513,7 +9787,14 @@ const UI = {
         if (!REGIONS[f.id]) return '';
         return '<path class="fx-flash fx-flash-' + f.kind + '" d="' + REGIONS[f.id].d + '"'
           + ' style="--fc:' + f.colour + ';animation-delay:-' + (now - f.start) + 'ms"/>';
-      }).join('');
+      }).join('') + Juice.actsMarkup(now);
+
+      /* arrows and labels are removed by the clock, not by an animation */
+      clearTimeout(Juice._actTimer);
+      if (Juice.acts.length) {
+        const next = Math.min.apply(null, Juice.acts.map(a => a.until)) - now;
+        Juice._actTimer = setTimeout(Juice.paintFlashes, Math.max(120, next + 30));
+      }
     },
 
     /* ---------------- chronicle watcher ---------------- */
@@ -9521,7 +9802,11 @@ const UI = {
     seen: 0,
     lastActor: -1,
 
-    reset() { Juice.seen = (typeof G !== 'undefined' && G) ? G.logSeq : 0; Juice.flashes = []; Juice._names = null; Juice.lastActor = -1; },
+    reset() {
+      Juice.seen = (typeof G !== 'undefined' && G) ? G.logSeq : 0;
+      Juice.flashes = []; Juice.acts = []; Juice.narration = null;
+      Juice._names = null; Juice.lastActor = -1;
+    },
 
     pump() {
       if (typeof G === 'undefined' || !G) return;
@@ -9537,6 +9822,43 @@ const UI = {
 
       const human = pi => pi !== null && pi !== undefined && !AI.isAI(pi);
       let played = {};
+
+      /* ---- what the rivals just did: the hint bar's line, and labels ---- */
+      const raised = {};                    // "pi|region" -> { n, units:Set }
+      let said = null;
+      const NARRATE = { march: 1, attack: 1, capture: 1, repulse: 1, withdraw: 1, build: 1, monument: 1,
+                        boon: 1, perk: 1, level: 1, domain: 1, championfall: 1, siege: 1, desert: 1, spoils: 1 };
+      for (const e of fresh) {
+        if (e.player === null || e.player === undefined || !AI.isAI(e.player)) continue;
+        const pl = G.players[e.player];
+        if (!pl) continue;
+        const rest = e.text.indexOf(pl.name) === 0 ? e.text.slice(pl.name.length).replace(/^'s /, '’s ').trim() : e.text;
+        const where = Juice.regionByName(e.text);
+        if (e.kind === 'raise') {
+          const key = e.player + '|' + where;
+          const m = /raises (.+?) at /.exec(e.text);
+          raised[key] = raised[key] || { n: 0, units: {}, pi: e.player, where };
+          raised[key].n++;
+          if (m) raised[key].units[m[1]] = 1;
+          continue;
+        }
+        if (!NARRATE[e.kind]) continue;
+        said = { pi: e.player, text: rest };
+        if (e.kind === 'build')    Juice.label(where, 'Built', '#c98f47', e.player, 'build');
+        if (e.kind === 'capture')  Juice.label(where, 'Taken', pl.colour.hex, e.player);
+        if (e.kind === 'repulse')  Juice.label(where, 'Held', '#e7e4dc', e.player, 'held');
+        if (e.kind === 'withdraw') Juice.label(where, 'Held', '#e7e4dc', e.player, 'held');
+      }
+      for (const k in raised) {
+        const r = raised[k], pl = G.players[r.pi];
+        const kinds = Object.keys(r.units);
+        Juice.label(r.where, '+' + r.n, pl.colour.hex, r.pi);
+        if (!said || said.pi !== r.pi) {
+          said = { pi: r.pi, text: 'raises ' + r.n + ' ' + (kinds.length === 1 ? kinds[0] : 'hosts')
+            + (r.where ? ' at ' + REGIONS[r.where].name : '') + '.' };
+        }
+      }
+      if (said) Juice.narration = said;
       const once = (name) => { if (!played[name]) { played[name] = 1; Juice.play(name); } };
 
       for (const e of fresh) {
@@ -9576,6 +9898,9 @@ const UI = {
       /* your Turn has come round */
       const a = UI.actingIndex();
       if (a !== Juice.lastActor) {
+        /* one warlord's marks at a time: the last rival's arrows and labels
+           go when the next one starts */
+        Juice.acts = Juice.acts.filter(x => x.pi === a);
         if (Juice.lastActor !== -1 && human(a) && G.phase === 'turn') { Juice.play('turn'); Juice.buzz(25); }
         Juice.lastActor = a;
       }
@@ -9642,7 +9967,21 @@ const UI = {
 
       Juice.wrap(UI, 'openCombat', Juice.afterCombat);
       Juice.wrap(UI, 'openBoon', Juice.afterBoon);
-      Juice.wrap(UI, 'render', () => { Juice.pump(); Juice.paintFlashes(); });
+      Juice.wrap(UI, 'render', () => {
+        const before = Juice.narration;
+        Juice.pump();
+        Juice.paintFlashes();
+        /* the hint bar was drawn before pump() ran; redraw it if the line changed */
+        if (Juice.narration !== before && UI.renderHint) UI.renderHint();
+      });
+      /* AI.bestAction is called exactly once per action a rival takes, and is
+         the only place a march's source and target are both known. */
+      const realBest = AI.bestAction;
+      AI.bestAction = function (pi) {
+        const act = realBest.apply(this, arguments);
+        try { Juice.sawAct(pi, act); } catch (e) {}
+        return act;
+      };
       Juice.wrap(UI, 'renderMap', Juice.paintFlashes);
       Juice.wrap(UI.fx, 'refuse', () => { Juice.play('refuse'); Juice.buzz([12, 50, 12]); });
       Juice.wrap(UI.fx, 'reset', Juice.reset);
