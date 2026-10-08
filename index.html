@@ -2037,6 +2037,16 @@ button:active:not(:disabled) { transform: scale(.97); }
   #modal, #pass-card { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 }
 
+
+/* quick-match and title additions */
+#title-quick .check { margin-top: .9rem; min-height: 44px; }
+.title-discard {
+  align-self: flex-start; min-height: 44px; margin: -.3rem 0 0 .2rem; padding: 0 .6rem;
+  background: none; border: none; color: var(--ink-dim); font-size: var(--t-small);
+  text-decoration: underline; cursor: pointer;
+}
+.pv-foot.top { flex-wrap: wrap; }
+
 </style>
 </head>
 <body>
@@ -2062,6 +2072,7 @@ button:active:not(:disabled) { transform: scale(.97); }
     <div class="title-menu">
       <button id="t-continue" class="title-btn" type="button" hidden>
         <b>Continue</b><small id="t-continue-sub"></small></button>
+      <button id="t-discard" class="title-discard" type="button" hidden>Discard this saved match</button>
       <button id="t-quick" class="title-btn is-primary" type="button">
         <b>Quick match</b><small>You against three rivals</small></button>
       <button id="t-daily" class="title-btn" type="button">
@@ -2071,7 +2082,7 @@ button:active:not(:disabled) { transform: scale(.97); }
       <button id="setup-howto" class="title-btn is-quiet" type="button">
         <b>How to play</b><small>Gods, hosts and ground</small></button>
     </div>
-    <div class="title-foot">v0.2 · <span id="build-id">built 2026-10-08 12:55 UTC</span></div>
+    <div class="title-foot">v0.2 · <span id="build-id">built 2026-10-08 13:24 UTC</span></div>
   </div>
 
   <!-- Quick match: a patron and a difficulty, nothing else. -->
@@ -2083,6 +2094,10 @@ button:active:not(:disabled) { transform: scale(.97); }
     <div class="eyebrow q-gap">Rivals</div>
     <div class="seg q-diff" id="q-diff"></div>
     <p class="setup-note" id="q-diff-blurb"></p>
+    <label class="check">
+      <input type="checkbox" id="q-reactions">
+      <span>Reaction turns — everyone gets one action during each rival's Turn</span>
+    </label>
     <button id="q-start" class="primary big" type="button">Begin the war</button>
   </div>
 
@@ -2133,8 +2148,8 @@ button:active:not(:disabled) { transform: scale(.97); }
       <span>Guide me through my first Turn</span>
     </label>
     <label class="check">
-      <input type="checkbox" id="skip-reactions">
-      <span>Skip Reactions — go straight from one Turn to the next, with none of the mini-turns between</span>
+      <input type="checkbox" id="c-reactions">
+      <span>Reaction turns — everyone gets one action during each rival's Turn</span>
     </label>
 
     <button id="start" class="primary big">Begin the war</button>
@@ -2154,7 +2169,7 @@ button:active:not(:disabled) { transform: scale(.97); }
       <button id="btn-chronicle" class="tb-icon" type="button"
               aria-label="Chronicle — the record of the war"></button>
       <button id="btn-menu" class="tb-icon" type="button"
-              aria-label="How to play"></button>
+              aria-label="Menu: quit, settings and how to play"></button>
     </div>
   </header>
 
@@ -2578,7 +2593,10 @@ const ASSAULT_LIMIT_DEFAULT = 0;
    the Turn/Reaction asymmetry above worse, not better: a defender gets no
    response window at all instead of one weak Reaction, so pair it with an
    Assault limit if a blitz turns out to run away with it. */
-const SETTINGS = { assaultLimit: ASSAULT_LIMIT_DEFAULT, skipReactions: false };
+/* Default flipped to TRUE in October 2026 on the owner's playtest: the
+   mini-turns between every Turn read as waiting, not as play. Reactions are
+   now the opt-in ("Reaction turns" on the quick-match and custom screens). */
+const SETTINGS = { assaultLimit: ASSAULT_LIMIT_DEFAULT, skipReactions: true };
 
 /* Cap on the flat bonus added to a side's highest die. Zealots scaling with
    Renown, doubled by Fury, plus a Champion could reach +8 on a six-sided
@@ -7852,12 +7870,15 @@ const UI = {
     const spd = UI.speedCtl;
     UI.pv.open({
       kind: 'menu', variant: 'drop',
-      title: 'How this works', aria: 'How to play',
+      title: (typeof G !== 'undefined' && G) ? 'Menu' : 'How this works', aria: 'Menu and how to play',
       body:
         '<div class="pv-foot top">'
         + '<button class="ghost" type="button" data-x="tut">Rules</button>'
         + (typeof G !== 'undefined' && G && G.phase !== 'gameover'
-            ? '<button class="ghost" type="button" data-x="quit">Save &amp; quit</button>' : '')
+            ? '<button class="ghost" type="button" data-x="quit">Save &amp; quit</button>'
+            + '<button class="danger" type="button" data-x="abandon">Abandon match</button>' : '')
+        + (window.Meta && typeof G !== 'undefined' && G ? '<button class="ghost" type="button" data-x="az">Watch rivals: '
+            + (Meta.prefs().autoZoom ? 'On' : 'Off') + '</button>' : '')
         + (spd ? '<button class="ghost" type="button" data-x="spd">Speed: '
             + esc(spd.name()) + '</button>' : '')
         + (window.Juice ? '<button class="ghost" type="button" data-x="snd">Sound: '
@@ -7895,6 +7916,23 @@ const UI = {
         if (q) q.addEventListener('click', () => {
           if (window.Meta) { Meta._savedSeq = -1; Meta.autosave(); }
           location.reload();
+        });
+        /* Abandon throws the match away: no save, no career entry, straight
+           back to the title. Two taps, because it cannot be undone. */
+        const ab = card.querySelector('[data-x="abandon"]');
+        if (ab) ab.addEventListener('click', () => {
+          if (ab.dataset.armed !== '1') { ab.dataset.armed = '1'; ab.textContent = 'Tap again to abandon'; return; }
+          if (window.Meta) {
+            Meta.session = { config: null, daily: null };   // stops any further autosave
+            Meta.clearSave();
+          }
+          location.reload();
+        });
+        const az = card.querySelector('[data-x="az"]');
+        if (az) az.addEventListener('click', () => {
+          const on = !Meta.prefs().autoZoom;
+          Meta.setPref('autoZoom', on);
+          az.textContent = 'Watch rivals: ' + (on ? 'On' : 'Off');
         });
         const sn = card.querySelector('[data-x="snd"]');
         if (sn) sn.addEventListener('click', () => {
@@ -9280,23 +9318,77 @@ const UI = {
     sound:   store.get('apotheosis-sound', true),
     haptics: store.get('apotheosis-haptics', true),
 
-    setSound(on)   { Juice.sound = !!on;   store.set('apotheosis-sound', on); if (on) Juice.play('tap'); },
+    setSound(on) {
+      Juice.sound = !!on; store.set('apotheosis-sound', on);
+      if (on) Juice.play('capture');      // an unmistakable test tone
+      else if (Juice._media) { try { Juice._media.pause(); } catch (e) {} Juice._media = null; }
+    },
     setHaptics(on) { Juice.haptics = !!on; store.set('apotheosis-haptics', on); if (on) Juice.buzz(12); },
 
     /* ---------------- audio ---------------- */
 
     ctx: null, master: null,
 
+    /* iOS, two separate problems, both silent:
+
+       1. WebAudio is treated as "ambient" sound, which the ring/silent switch
+          mutes regardless of the volume buttons. Safari 16.4+ lets a page
+          declare itself as playback audio (navigator.audioSession); for older
+          versions the long-standing workaround is a silent looping <audio>
+          element, which moves the whole page onto the media channel.
+
+       2. An AudioContext only starts inside a gesture iOS counts as user
+          activation, and it has not always counted pointerdown/touchstart.
+          wake() is therefore also called from touchend and click, and plays a
+          one-sample silent buffer, which is what actually unlocks the output. */
+    _unlocked: false,
     wake() {
-      if (Juice.ctx) { if (Juice.ctx.state === 'suspended') Juice.ctx.resume(); return; }
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
+      if (!Juice.ctx) {
+        try {
+          if (navigator.audioSession) { try { navigator.audioSession.type = 'playback'; } catch (e) {} }
+          Juice.ctx = new AC();
+          Juice.master = Juice.ctx.createGain();
+          Juice.master.gain.value = 0.9;
+          Juice.master.connect(Juice.ctx.destination);
+        } catch (e) { Juice.ctx = null; return; }
+      }
+      if (Juice.ctx.state !== 'running') { try { Juice.ctx.resume(); } catch (e) {} }
+      if (!Juice._unlocked) {
+        try {
+          const src = Juice.ctx.createBufferSource();
+          src.buffer = Juice.ctx.createBuffer(1, 1, 22050);
+          src.connect(Juice.ctx.destination);
+          src.start(0);
+          if (Juice.ctx.state === 'running') Juice._unlocked = true;
+        } catch (e) {}
+      }
+      Juice.mediaChannel();
+    },
+
+    /* The silent-switch workaround for iOS without navigator.audioSession. */
+    _media: null,
+    mediaChannel() {
+      if (Juice._media || !Juice.sound || navigator.audioSession) return;
+      if (!/iP(hone|ad|od)/.test(navigator.userAgent) &&
+          !(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return;
       try {
-        Juice.ctx = new AC();
-        Juice.master = Juice.ctx.createGain();
-        Juice.master.gain.value = 0.5;
-        Juice.master.connect(Juice.ctx.destination);
-      } catch (e) { Juice.ctx = null; }
+        /* a 0.05s silent WAV, built here so nothing is loaded */
+        const rate = 8000, n = 400, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+        const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+        str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+        v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
+        v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+        str(36, 'data'); v.setUint32(40, n, true);
+        for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+        const a = document.createElement('audio');
+        a.src = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+        a.loop = true; a.setAttribute('playsinline', ''); a.volume = 0.01;
+        const p = a.play();
+        if (p && p.catch) p.catch(() => { Juice._media = null; });
+        Juice._media = a;
+      } catch (e) {}
     },
 
     tone(freq, dur, opt) {
@@ -9363,9 +9455,14 @@ const UI = {
     play(name) {
       if (!Juice.sound) return;
       Juice.wake();
-      if (!Juice.ctx || Juice.ctx.state !== 'running') return;
+      if (!Juice.ctx) return;
       const fn = Juice.SOUNDS[name];
-      if (fn) { try { fn(); } catch (e) {} }
+      if (!fn) return;
+      const go = () => { try { fn(); } catch (e) {} };
+      /* resume() is asynchronous, so the first sound after a suspend used to
+         be dropped — which on a phone is the very first tap of every visit. */
+      if (Juice.ctx.state === 'running') go();
+      else { try { Juice.ctx.resume().then(go).catch(() => {}); } catch (e) {} }
     },
 
     buzz(pattern) {
@@ -9559,6 +9656,14 @@ const UI = {
         if (!b) return;
         Juice.play('tap'); Juice.buzz(8);
       }, { passive: true, capture: true });
+      /* the gestures iOS has always honoured as activation */
+      ['touchend', 'click'].forEach(t =>
+        document.addEventListener(t, () => Juice.wake(), { passive: true, capture: true }));
+      /* iOS suspends the context whenever the page is backgrounded */
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') { Juice._unlocked = false; }
+        else if (Juice._media) { try { Juice._media.pause(); } catch (e) {} Juice._media = null; }
+      });
     }
   };
 
@@ -9696,7 +9801,7 @@ const Meta = {
     const mine = patrons[Math.floor(r() * patrons.length)];
     const order = [0, 1, 2].map(i => kinds[(off + i) % kinds.length]);
     const seats = [{ type: 'human', patron: mine, ai: kinds[0] }].concat(Meta.rivalsFor(mine, order));
-    return { count: 4, seats, map: 'default', assaultLimit: 0, skipReactions: false,
+    return { count: 4, seats, map: 'default', assaultLimit: 0, skipReactions: true,
              privacy: false, difficulty: 'hard', daily: key, seed };
   },
 
@@ -9834,7 +9939,35 @@ const Meta = {
 
   /* ---------------- prefs ---------------- */
 
-  prefs() { return Object.assign({ patron: 'vashtar', difficulty: 'normal', coached: false }, Meta.read(Meta.K.prefs, {})); },
+  prefs() { return Object.assign({ patron: 'vashtar', difficulty: 'normal', coached: false, reactions: false, autoZoom: true }, Meta.read(Meta.K.prefs, {})); },
+
+  /* ---------------- watching rivals ----------------
+     On a phone the player sits zoomed in on their own corner, and a rival's
+     Turn played out somewhere off screen. When play passes to an AI the
+     camera pulls back to the whole board (the far view makes that readable);
+     when it comes back, the player's own view is restored exactly. Never
+     during a live gesture, and never if the player has switched it off. */
+  _watch: { actor: -1, saved: null },
+  watchCamera() {
+    if (typeof G === 'undefined' || !G || !UI.cam || !UI.cam._defaultSet) return;
+    const w = Meta._watch;
+    if (G.phase === 'gameover') { w.actor = -1; w.saved = null; return; }
+    const a = UI.actingIndex();
+    if (a === w.actor) return;
+    if (UI.cam._live) return;                      // try again on the next render
+    const wasAI = w.actor >= 0 && AI.isAI(w.actor), isAI = AI.isAI(a);
+    w.actor = a;
+    if (!Meta.prefs().autoZoom) { w.saved = null; return; }
+    if (isAI && !wasAI) {
+      w.saved = { k: UI.cam.k, cx: UI.cam.cx, cy: UI.cam.cy };
+      UI.cam.reset();
+    } else if (!isAI && w.saved) {
+      UI.cam.heal();
+      UI.cam.k = w.saved.k; UI.cam.cx = w.saved.cx; UI.cam.cy = w.saved.cy;
+      w.saved = null;
+      UI.cam.paint();
+    }
+  },
   setPref(k, v) { const p = Meta.prefs(); p[k] = v; Meta.write(Meta.K.prefs, p); },
 
   init() {
@@ -9844,6 +9977,7 @@ const Meta = {
     UI.render = function () {
       const out = real.apply(this, arguments);
       try { Meta.autosave(); } catch (e) {}
+      try { Meta.watchCamera(); } catch (e) {}
       return out;
     };
     /* A phone gives no warning before it suspends a tab. */
@@ -9905,7 +10039,7 @@ const Coach = {
       skippable: true },
 
     { title: 'End your Turn',
-      text: 'When your actions are spent, <b>End Turn</b>. Rivals then act — and you get one <b>Reaction</b> during each of their Turns.',
+      text: 'When your actions are spent, <b>End Turn</b>. The view pulls back so you can watch your rivals move, then returns to you.',
       target: c => null,
       done: c => UI.actingIndex() !== c.pi || G.round > 1 },
 
@@ -10098,6 +10232,7 @@ window.Coach = Coach;
 
     const save = Meta.peekSave();
     $('#t-continue').hidden = !save;
+    $('#t-discard').hidden = !save;
     if (save) $('#t-continue-sub').textContent = Meta.describeSave(save);
     $('#t-quick').classList.toggle('is-primary', !save);
     $('#t-continue').classList.toggle('is-primary', !!save);
@@ -10284,7 +10419,9 @@ window.Coach = Coach;
   $('#q-start').addEventListener('click', () => {
     const quick = [{ type: 'human', patron: seats[0].patron, ai: 'warmonger' }]
       .concat(Meta.rivalsFor(seats[0].patron));
-    startGame({ count: 4, seats: quick, map: 'default', assaultLimit: 0, skipReactions: false,
+    Meta.setPref('reactions', $('#q-reactions').checked);
+    startGame({ count: 4, seats: quick, map: 'default', assaultLimit: 0,
+                skipReactions: !$('#q-reactions').checked,
                 privacy: false, difficulty, coach: firstRun() });
   });
 
@@ -10296,9 +10433,13 @@ window.Coach = Coach;
 
   $('#start').addEventListener('click', () => {
     startGame({ count, seats: snapshotSeats(), map: $('#map-choice').value, assaultLimit,
-                skipReactions: $('#skip-reactions').checked, privacy: $('#privacy').checked,
+                skipReactions: !$('#c-reactions').checked, privacy: $('#privacy').checked,
                 difficulty, coach: $('#show-tutorial').checked });
   });
+
+  $('#q-reactions').checked = !!prefs.reactions;
+  $('#c-reactions').checked = !!prefs.reactions;
+  $('#t-discard').addEventListener('click', () => { Meta.clearSave(); drawHome(); });
 
   $('#t-continue').addEventListener('click', () => {
     const save = Meta.peekSave();
