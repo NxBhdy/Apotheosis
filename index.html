@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Apotheosis — prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#12141c">
+<meta name="description" content="Take ground, raise it up, become a legend. A strategy game of territory, tribute and renown.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Apotheosis">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>Apotheosis</title>
 <style>
 /* ============================================================
    APOTHEOSIS — prototype styles
@@ -1704,19 +1713,383 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
    play, not the rare case it assumed. renderMap()'s static/dynamic split
    made the commit paint cheap by a much larger margin without that cost. */
 
+
+/* ============================================================
+   LEGIBILITY PASS — labels where there were only marks
+   ============================================================ */
+
+/* Action strip: a word under every icon. */
+.st-icons .as-ico { flex-direction: column; gap: 2px; min-height: 46px; }
+.as-cap {
+  font-family: var(--f-mono); font-size: 9px; letter-spacing: .04em;
+  text-transform: uppercase; line-height: 1; color: inherit; opacity: .85;
+}
+/* The description under the action name ran off the strip mid-word. Two lines. */
+.as-why, .rz-rule {
+  white-space: normal; display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; line-clamp: 2;
+}
+
+/* Player chips on a phone: three bare numbers became three captioned ones. */
+.tb-p .n i { display: none; }
+@media (max-width: 900px) {
+  .tb-p .n { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .tb-p .n i {
+    display: block; font-style: normal; font-weight: 600; font-size: 7px;
+    letter-spacing: .08em; color: var(--ink-dim); line-height: 1;
+  }
+}
+
+
+/* ============================================================
+   MOTION — approved October 2026
+
+   Every keyframe below animates TO the element's resting state, so the global
+   prefers-reduced-motion rule (which sets animation: none) and a tab that
+   never runs a frame both leave a complete, correct screen. Nothing loops
+   except the coach ring, and nothing here touches the board's transform —
+   the camera owns that.
+   ============================================================ */
+
+/* dialogs arrive instead of appearing */
+#modal-layer:not(.hidden) { animation: pv-fade .16s ease both; }
+#modal-layer:not(.hidden) #modal { animation: modal-in .22s cubic-bezier(.2,.8,.3,1) both; }
+#pass-layer:not(.hidden) #pass-card { animation: modal-in .22s cubic-bezier(.2,.8,.3,1) both; }
+@keyframes modal-in { from { opacity: 0; transform: translateY(18px) scale(.985) } to { opacity: 1; transform: none } }
+
+/* ---- dice ---- */
+.xch.rolling .die-f { animation: die-tumble .46s cubic-bezier(.25,.7,.3,1) both; transform-origin: 50% 50%; }
+.xch.rolling .xp:nth-child(2) .die-f { animation-delay: .05s; }
+.xch.rolling .xp:nth-child(3) .die-f { animation-delay: .1s; }
+.xch.rolling .xp:nth-child(4) .die-f { animation-delay: .15s; }
+.xch.rolling .xp .xd:last-child .die-f { animation-name: die-tumble-up; }
+@keyframes die-tumble {
+  0%   { opacity: 0; transform: translateY(-26px) rotate(-260deg) scale(.6); }
+  55%  { opacity: 1; transform: translateY(3px) rotate(14deg) scale(1.08); }
+  78%  { transform: translateY(-2px) rotate(-5deg) scale(.98); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes die-tumble-up {
+  0%   { opacity: 0; transform: translateY(26px) rotate(260deg) scale(.6); }
+  55%  { opacity: 1; transform: translateY(-3px) rotate(-14deg) scale(1.08); }
+  78%  { transform: translateY(2px) rotate(5deg) scale(.98); }
+  100% { opacity: 1; transform: none; }
+}
+/* the verdict lands after the dice do */
+.xch.rolling .xm, .xch.rolling .xb, .xch.rolling .xch-notes, .xch.rolling .xo {
+  animation: verdict-in .22s ease .46s both;
+}
+@keyframes verdict-in { from { opacity: 0; transform: scale(.9) } to { opacity: 1; transform: none } }
+.xch.rolling .xp { animation: pair-settle .3s ease .46s both; }
+@keyframes pair-settle { from { border-color: var(--line); } }
+.xch.rolling .xo-i.hit b { animation: hit-thump .34s cubic-bezier(.3,1.6,.5,1) .6s both; display: inline-block; }
+@keyframes hit-thump { from { transform: scale(1.9); } to { transform: none; } }
+
+/* a battle that is over says so */
+#modal.is-taken { border-top-color: var(--verdigris); }
+#modal.is-held  { border-top-color: var(--blood); }
+
+/* ---- level-up ---- */
+#modal.levelup .lvl-badge { animation: badge-in .6s cubic-bezier(.2,1.5,.4,1) both; position: relative; }
+@keyframes badge-in { from { opacity: 0; transform: scale(.3) rotate(-25deg); } to { opacity: 1; transform: none; } }
+#modal.levelup .lvl-badge::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%;
+  border: 2px solid var(--bronze); opacity: 0; pointer-events: none;
+  animation: badge-ring .9s ease-out .25s both;
+}
+@keyframes badge-ring { from { opacity: .9; transform: scale(.7); } to { opacity: 0; transform: scale(2.1); } }
+#modal.levelup .boon-card { animation: card-in .28s cubic-bezier(.2,.8,.3,1) both; }
+#modal.levelup .boon-card:nth-child(2) { animation-delay: .22s; }
+#modal.levelup .boon-card:nth-child(3) { animation-delay: .29s; }
+#modal.levelup .boon-card:nth-child(4) { animation-delay: .36s; }
+#modal.levelup .boon-card:nth-child(5) { animation-delay: .43s; }
+@keyframes card-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ---- the board: ground that just changed hands ----
+   One overlay path, opacity only, in steps — a handful of repaints, never a
+   filter and never a transform on the map. */
+.fx-flash {
+  fill: var(--fc, #fff); stroke: #f4efe2; stroke-width: 5; stroke-linejoin: round;
+  opacity: 0; pointer-events: none;
+  animation: terr-flash .9s steps(10, end) both;
+}
+.fx-flash-build { fill: none; stroke: var(--bronze); stroke-width: 7; }
+@keyframes terr-flash {
+  0%   { opacity: 0; }
+  12%  { opacity: .85; }
+  40%  { opacity: .5; }
+  100% { opacity: 0; }
+}
+
+/* buttons answer the finger */
+button:active:not(:disabled) { transform: scale(.97); }
+.st-ok:active, .st-x:active { transform: scale(.92); }
+
+
+/* ============================================================
+   TITLE, QUICK MATCH, CAREER, RESULT, COACH
+   The screens around the match. Built on the same tokens and the same
+   --elev-* surfaces as the popovers.
+   ============================================================ */
+
+[hidden] { display: none !important; }
+
+#setup {
+  align-items: start; justify-items: center;
+  padding: max(1.2rem, env(safe-area-inset-top)) 1rem max(1.2rem, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(90% 55% at 50% 0%, color-mix(in srgb, var(--bronze) 16%, transparent), transparent 70%),
+    radial-gradient(120% 60% at 50% 110%, #1e4b6b55, transparent 70%),
+    var(--ground);
+}
+
+.title-card {
+  width: min(26rem, 100%); margin: auto 0;
+  display: flex; flex-direction: column; align-items: stretch;
+  padding: 1.2rem .4rem 1rem;
+}
+.title-mark { width: 104px; height: 104px; align-self: center; margin-bottom: .9rem; }
+.tm-ring { fill: none; stroke: var(--bronze); stroke-width: 2.5; }
+.tm-ring.thin { stroke-width: 1; stroke: var(--bronze-dim); }
+.tm-rays { stroke: var(--bronze-dim); stroke-width: 2; stroke-linecap: round; fill: none; }
+.tm-crown { fill: var(--bronze); stroke: #f1d7a8; stroke-width: 1.5; stroke-linejoin: round; }
+.tm-band { fill: #e9c88f; }
+.tm-gem { fill: var(--verdigris); stroke: #0c0e14; stroke-width: 1; }
+
+.title-card h1 {
+  font-family: var(--f-display); font-weight: 600; text-align: center; line-height: 1;
+  font-size: clamp(2.2rem, 11vw, 3.3rem); letter-spacing: .09em; margin: 0 0 .5rem;
+  /* letter-spacing trails the last glyph; pull the word back to optical centre */
+  padding-left: .09em;
+}
+.title-card .setup-blurb { text-align: center; margin: 0 auto 1.3rem; font-size: 1rem; color: var(--ink-mid); }
+.title-h2 { font-family: var(--f-display); font-size: var(--t-h2); font-weight: 600; margin: .1rem 0 .9rem; }
+
+.title-menu { display: flex; flex-direction: column; gap: .55rem; }
+.title-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: .12rem;
+  min-height: 58px; padding: .6rem 1rem; text-align: left; cursor: pointer;
+  background: var(--surface-2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--elev-1);
+}
+.title-btn b { font-family: var(--f-display); font-size: 1.15rem; font-weight: 600; letter-spacing: .01em; }
+.title-btn small { font-size: var(--t-small); color: var(--ink-mid); }
+.title-btn.is-primary {
+  border-color: var(--bronze);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bronze) 34%, var(--surface-2)),
+                                      color-mix(in srgb, var(--bronze) 16%, var(--surface-2)));
+  box-shadow: var(--elev-2);
+}
+.title-btn.is-primary small { color: #e6d3b3; }
+.title-btn.is-quiet { background: transparent; box-shadow: none; min-height: 50px; }
+.title-btn:focus-visible, .q-patron:focus-visible, .title-back:focus-visible { outline: 2px solid var(--bronze); outline-offset: 2px; }
+.title-foot {
+  margin-top: 1.1rem; text-align: center; font-family: var(--f-mono);
+  font-size: var(--t-micro); letter-spacing: .08em; color: var(--ink-dim);
+}
+.title-back {
+  align-self: flex-start; min-height: 44px; padding: 0 .9rem 0 .2rem; margin-bottom: .3rem;
+  background: none; border: none; color: var(--ink-mid); font-size: var(--t-body); cursor: pointer;
+}
+#title-custom .title-back { margin-left: -.2rem; }
+#title-custom { margin: auto 0; }
+
+/* career strip — title screen and result screen share it */
+.career, .rs-career {
+  display: flex; align-items: center; gap: .8rem; margin: 0 0 1.1rem;
+  padding: .6rem .8rem; border: 1px solid var(--line); border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+.career-rank {
+  flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%;
+  border: 2px solid var(--bronze); display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.career-rank b { font-family: var(--f-mono); font-size: 1.05rem; line-height: 1; color: var(--bronze); }
+.career-rank span { font-family: var(--f-mono); font-size: 6.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); margin-top: 2px; }
+.career-body { flex: 1 1 auto; min-width: 0; }
+.career-title { font-family: var(--f-display); font-size: var(--t-lead); line-height: 1.2; }
+.career-title em { font-style: normal; font-family: var(--f-mono); font-size: var(--t-micro); color: var(--verdigris); margin-left: .4rem; }
+.career-title em.up { color: var(--bronze); }
+.career-bar { height: 4px; border-radius: 2px; background: var(--surface-3); margin: .35rem 0 .3rem; overflow: hidden; }
+.career-bar i { display: block; height: 100%; background: var(--bronze); border-radius: 2px; }
+.career-stats { font-size: var(--t-micro); color: var(--ink-dim); font-family: var(--f-mono); letter-spacing: .03em; }
+
+/* quick match */
+.q-patrons { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .55rem; }
+.q-patron {
+  display: flex; flex-direction: column; align-items: flex-start; gap: .18rem; text-align: left;
+  padding: .7rem .75rem; min-height: 44px; cursor: pointer;
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: var(--elev-1);
+}
+.q-patron.on { border-color: var(--bronze); background: color-mix(in srgb, var(--bronze) 15%, var(--surface-2)); box-shadow: var(--elev-2); }
+.q-patron-name { font-family: var(--f-display); font-size: 1.25rem; font-weight: 600; line-height: 1.1; }
+.q-patron-ep { font-family: var(--f-display); font-style: italic; font-size: var(--t-small); color: var(--ink-mid); }
+.q-patron-pass { font-size: var(--t-small); line-height: 1.35; color: var(--ink); margin-top: .3rem; }
+.q-patron-plays { font-size: var(--t-micro); line-height: 1.35; color: var(--ink-dim); }
+.q-gap { margin-top: 1.2rem; margin-bottom: .45rem; }
+.q-diff, #c-diff { align-self: flex-start; border-radius: 8px; overflow: hidden; }
+.q-diff button, #c-diff button { min-height: 44px; min-width: 5.2rem; }
+#q-diff-blurb { margin: .5rem 0 0; min-height: 2.2em; }
+#q-start.big, #start.big { min-height: 52px; border-radius: 10px; font-family: var(--f-display); font-size: 1.15rem; }
+
+/* final round */
+.tb-round.final { color: var(--bronze); font-weight: 700; }
+
+/* result */
+#modal.result { width: min(30rem, 100%); }
+.rs-head { text-align: center; margin-bottom: .9rem; }
+.rs-head h2 { font-size: 2.1rem; margin: .1rem 0 .2rem; }
+.rs-head.won h2 { color: var(--bronze); }
+.rs-head p { margin: 0; font-family: var(--f-display); font-style: italic; }
+.rs-rows { display: flex; flex-direction: column; gap: .5rem; margin-bottom: .9rem; }
+.rs-row {
+  display: grid; grid-template-columns: 1.3rem 1fr auto;
+  grid-template-areas: "pl who total" "pl bar bar" "pl parts parts";
+  column-gap: .5rem; row-gap: .22rem; align-items: center;
+  padding: .5rem .65rem; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--surface);
+}
+.rs-row.win { border-color: var(--bronze-dim); }
+.rs-row.you { background: var(--surface-2); }
+.rs-place { grid-area: pl; font-family: var(--f-mono); font-size: var(--t-lead); color: var(--ink-dim); align-self: start; padding-top: .1rem; }
+.rs-row.win .rs-place { color: var(--bronze); }
+.rs-who { grid-area: who; font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-who i { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; margin-right: .45rem; }
+.rs-who em { font-style: normal; font-weight: 400; font-size: var(--t-micro); color: var(--ink-dim); font-family: var(--f-mono); margin-left: .3rem; text-transform: uppercase; letter-spacing: .06em; }
+.rs-total { grid-area: total; font-family: var(--f-mono); font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.rs-bar { grid-area: bar; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.rs-bar i { display: block; height: 100%; border-radius: 3px; }
+.rs-parts { grid-area: parts; font-size: var(--t-micro); color: var(--ink-mid); font-family: var(--f-mono); letter-spacing: .02em; }
+#modal.result .rs-bar i { animation: bar-grow .7s cubic-bezier(.2,.8,.3,1) .15s both; transform-origin: 0 50%; }
+@keyframes bar-grow { from { transform: scaleX(0); } to { transform: none; } }
+#modal.result .rs-career { margin-bottom: .2rem; }
+
+/* coach */
+#coach {
+  position: absolute; left: .5rem; right: .5rem; top: .5rem; z-index: 24;
+  max-width: 24rem; margin: 0 auto;
+  padding: .6rem .7rem .55rem; border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-2) 96%, transparent);
+  border: 1px solid var(--bronze-dim); box-shadow: var(--elev-3);
+  animation: pv-drop .2s cubic-bezier(.2,.8,.3,1) both;
+}
+.coach-head { display: flex; align-items: center; gap: .5rem; }
+.coach-n {
+  flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--bronze); color: #1a1408; font-family: var(--f-mono); font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.coach-title { flex: 1 1 auto; font-family: var(--f-display); font-size: var(--t-lead); font-weight: 600; }
+.coach-x {
+  flex: 0 0 auto; min-height: 44px; min-width: 44px; margin: -.5rem -.5rem -.5rem 0; padding: 0 .5rem;
+  background: none; border: none; color: var(--ink-dim); font-size: var(--t-small); cursor: pointer;
+}
+.coach-text { margin: .3rem 0 .4rem; font-size: var(--t-small); line-height: 1.45; color: var(--ink-mid); }
+.coach-text b { color: var(--ink); font-weight: 650; }
+.coach-foot { display: flex; align-items: center; justify-content: space-between; min-height: 14px; }
+.coach-dots { display: flex; gap: 5px; }
+.coach-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--surface-3); }
+.coach-dot.done { background: var(--verd-dim); }
+.coach-dot.on { background: var(--bronze); }
+.coach-go {
+  min-height: 44px; padding: 0 1.1rem; margin: -.2rem 0; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--bronze-dim); background: color-mix(in srgb, var(--bronze) 20%, var(--surface-2)); color: var(--ink);
+}
+/* the one looping animation in the game: it exists only while the guide is up */
+.coach-ring {
+  fill: none; stroke: #f3d9a4; stroke-width: 4; stroke-linejoin: round; stroke-dasharray: 12 9;
+  pointer-events: none; animation: coach-pulse 1.3s steps(6, end) infinite alternate;
+}
+@keyframes coach-pulse { from { opacity: .35; } to { opacity: 1; } }
+/* announcements sit below the guide rather than underneath it */
+#map-pane:has(#coach) #announce { top: auto; bottom: 3.4rem; }
+
+#setup-howto.title-btn { display: flex; margin: 0; font-size: inherit; }
+
+
+/* ---------------- the far view (MapView.partFar) ---------------- */
+.far-badge { display: none; pointer-events: none; }
+#map.lod-far .region-content > * { display: none; }
+#map.lod-far .region-content > .far-badge { display: inline; }
+.far-disc { stroke: #0b0d13; stroke-width: 5; }
+.far-disc.far-empty { opacity: .6; }
+.far-n {
+  font-family: var(--f-mono); font-weight: 700; font-size: 46px; text-anchor: middle;
+  fill: #fff; paint-order: stroke; stroke: rgba(8,10,16,.75); stroke-width: 7px;
+}
+.far-crown { fill: #f1d7a8; stroke: #0b0d13; stroke-width: 1.4; stroke-linejoin: round; }
+.far-crown.far-seat { fill: none; stroke: #f1d7a8; stroke-width: 1.6; }
+.far-pip { fill: var(--bronze); stroke: #0b0d13; stroke-width: 3; }
+/* relief motifs and grain are noise at this scale */
+#map.lod-far .relief, #map.lod-far .grain { display: none; }
+
+
+/* ---------------- safe areas ----------------
+   With viewport-fit=cover (needed for a home-screen or store build to use the
+   whole display) the page extends under the notch and the home indicator.
+   Every inset is 0 in an ordinary browser tab, so the measured phone budget
+   in CLAUDE.md is unchanged there. */
+#game { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+#hintbar { padding-bottom: max(.35rem, env(safe-area-inset-bottom)); }
+.pv--strip { padding-bottom: max(.55rem, env(safe-area-inset-bottom)); }
+@media (max-width: 900px) {
+  #modal, #pass-card { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+}
+
 </style>
 </head>
 <body>
 
-<!-- ============ setup ============ -->
+<!-- ============ title + setup ============ -->
 <div id="setup" class="screen">
-  <div class="setup-card">
-    <div class="eyebrow">Prototype · v0.1 · <span id="build-id">built 2026-10-07 23:19 UTC</span></div>
-    <h1>APOTHEOSIS</h1>
-    <p class="setup-blurb">Four warlords, one contested world. Take ground, develop it, and become
-      someone worth telling stories about.</p>
 
-    <button id="setup-howto" class="ghost" type="button">New here? See how gods, troops &amp; regions work</button>
+  <!-- Home: the first thing anyone sees. One primary action, no form. -->
+  <div id="title-home" class="title-card">
+    <svg class="title-mark" viewBox="0 0 120 120" aria-hidden="true">
+      <circle cx="60" cy="60" r="54" class="tm-ring"/>
+      <circle cx="60" cy="60" r="47" class="tm-ring thin"/>
+      <path class="tm-rays" d="M60 12v12M60 96v12M12 60h12M96 60h12M26 26l9 9M85 85l9 9M94 26l-9 9M35 85l-9 9"/>
+      <path class="tm-crown" d="M32 78l-6-36 18 14 16-26 16 26 18-14-6 36z"/>
+      <path class="tm-band" d="M32 82h56v7H32z"/>
+      <circle cx="60" cy="30" r="4" class="tm-gem"/><circle cx="26" cy="42" r="3.2" class="tm-gem"/><circle cx="94" cy="42" r="3.2" class="tm-gem"/>
+    </svg>
+    <h1>APOTHEOSIS</h1>
+    <p class="setup-blurb">Take ground. Raise it up. Become a legend.</p>
+
+    <div id="career" class="career"></div>
+
+    <div class="title-menu">
+      <button id="t-continue" class="title-btn" type="button" hidden>
+        <b>Continue</b><small id="t-continue-sub"></small></button>
+      <button id="t-quick" class="title-btn is-primary" type="button">
+        <b>Quick match</b><small>You against three rivals</small></button>
+      <button id="t-daily" class="title-btn" type="button">
+        <b>Daily challenge</b><small id="t-daily-sub"></small></button>
+      <button id="t-custom" class="title-btn" type="button">
+        <b>Custom game</b><small>Seats, map and house rules</small></button>
+      <button id="setup-howto" class="title-btn is-quiet" type="button">
+        <b>How to play</b><small>Gods, hosts and ground</small></button>
+    </div>
+    <div class="title-foot">v0.2 · <span id="build-id">built 2026-10-08 12:55 UTC</span></div>
+  </div>
+
+  <!-- Quick match: a patron and a difficulty, nothing else. -->
+  <div id="title-quick" class="title-card" hidden>
+    <button class="title-back" type="button" data-back>&larr; Back</button>
+    <div class="eyebrow">Quick match</div>
+    <h2 class="title-h2">Choose your patron</h2>
+    <div id="q-patrons" class="q-patrons"></div>
+    <div class="eyebrow q-gap">Rivals</div>
+    <div class="seg q-diff" id="q-diff"></div>
+    <p class="setup-note" id="q-diff-blurb"></p>
+    <button id="q-start" class="primary big" type="button">Begin the war</button>
+  </div>
+
+  <!-- Custom game: the full form. -->
+  <div id="title-custom" class="setup-card" hidden>
+    <button class="title-back" type="button" data-back>&larr; Back</button>
+    <div class="eyebrow">Custom game</div>
 
     <div class="setup-row">
       <label class="setup-label">Warlords</label>
@@ -1731,6 +2104,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
       <label class="setup-label" for="map-choice">Map</label>
       <select id="map-choice" class="map-select"></select>
       <span class="setup-note" id="map-blurb"></span>
+    </div>
+
+    <div class="setup-row">
+      <label class="setup-label">Rivals</label>
+      <div class="seg" id="c-diff"></div>
     </div>
 
     <div id="patron-picks"></div>
@@ -1752,7 +2130,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
     </label>
     <label class="check">
       <input type="checkbox" id="show-tutorial" checked>
-      <span>Show the how-it-works walkthrough</span>
+      <span>Guide me through my first Turn</span>
     </label>
     <label class="check">
       <input type="checkbox" id="skip-reactions">
@@ -1804,6 +2182,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 <div id="modal-layer" class="hidden"><div id="modal"></div></div>
 <div id="pass-layer" class="hidden"><div id="pass-card"></div></div>
 
+<script>
+/* Offline support. Only where a service worker can exist: not from file://,
+   and not inside a native wrapper, which ships the files itself. */
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && !window.Capacitor) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+}
+</script>
 <script>
 /* ===== js/data.js ===== */
 /* ============================================================
@@ -1940,6 +2325,34 @@ const UNITS = {
     patron: 'ilthara', unlockLevel: 8,
     rule: 'Nothing else here can be lost while a Gatewarden stands. Siege cannot raze this Holding.',
     flavour: 'The gate is the weapon.'
+  },
+
+  /* Morwen — the dead do not eat, and they are raised where nothing grows */
+  revenant: {
+    id: 'revenant', name: 'Revenants', cost: 4, raisedAt: ['shrine', 'waste'],
+    patron: 'morwen', unlockLevel: 4,
+    rule: 'Cost no upkeep, and can be raised on Waste.',
+    flavour: 'They were Levy once. They remember the drill.'
+  },
+  reaper: {
+    id: 'reaper', name: 'Reapers', cost: 8, raisedAt: ['shrine'],
+    patron: 'morwen', unlockLevel: 8,
+    rule: 'Harvest — gain 2 XP for every host destroyed in a battle they fight, on either side.',
+    flavour: 'Every field is a harvest to somebody.'
+  },
+
+  /* Sael — the sea takes, and the sea arrives early */
+  corsair: {
+    id: 'corsair', name: 'Corsairs', cost: 5, raisedAt: ['port'],
+    patron: 'sael', unlockLevel: 4,
+    rule: 'Raid — every exchange they win takes 1 Tribute from the defender. Marches two regions.',
+    flavour: 'Paid on results, and only on results.'
+  },
+  tidecaller: {
+    id: 'tidecaller', name: 'Tidecallers', cost: 7, raisedAt: ['port'],
+    patron: 'sael', unlockLevel: 8,
+    rule: 'Surge — defenders they attack roll one fewer die.',
+    flavour: 'The wall was on dry land a moment ago.'
   }
 };
 
@@ -1986,6 +2399,46 @@ const PATRONS = {
       { id: 'tithe',     name: 'Tithe',          text: 'Gain 2 XP each Turn for every Shrine or Throne you hold.' },
       { id: 'unbroken',  name: 'Unbroken Walls', text: 'Your Holdings can never be destroyed below tier 1.' },
       { id: 'caravan',   name: 'Caravan Rights', text: 'Outriders generate 1 Income each Round.' }
+    ]
+  },
+  morwen: {
+    id: 'morwen',
+    name: 'Morwen',
+    epithet: 'the Pale Shepherd',
+    domain: 'Death · Memory',
+    flavour: 'She counts the fallen on both sides, and calls the sum hers.',
+    passive: 'You earn double XP for every host you lose in battle.',
+    elites: ['revenant', 'reaper'],
+    plays: 'Wins by losing well. Wants Shrines, Waste and long wars.',
+    boons: [
+      { id: 'gravetithe', name: 'Grave Tithe',  text: 'Gain 1 Tribute for every host you lose in battle.' },
+      { id: 'longmemory', name: 'Long Memory',  text: 'Each Shrine you hold pays 2 extra XP every Turn.' },
+      { id: 'barrowland', name: 'Barrowland',   text: 'Waste you hold generates 2 Income.' },
+      { id: 'mourners',   name: 'Mourners',     text: 'Zealots cost 1 less to raise.' },
+      { id: 'lastrites',  name: 'Last Rites',   text: 'Gain 6 XP whenever a rival takes a region from you.' },
+      { id: 'ossuary',    name: 'Ossuary',      text: 'Monuments yield half again as much XP.' },
+      { id: 'dreadname',  name: 'Dread Name',   text: 'Ties go to you in the first exchange of every battle you start.' },
+      { id: 'palehost',   name: 'Pale Host',    text: 'Levy cost nothing at a Shrine you control.' }
+    ]
+  },
+  sael: {
+    id: 'sael',
+    name: 'Sael',
+    epithet: 'of the Wandering Tide',
+    domain: 'Sea · Roads',
+    flavour: 'He has never arrived anywhere he was expected.',
+    passive: 'Your hosts march one region further, and every Port you hold pays +1 Income.',
+    elites: ['corsair', 'tidecaller'],
+    plays: 'Sprawl and speed. Wants Ports and more ground than anyone can hold.',
+    boons: [
+      { id: 'tradewinds', name: 'Trade Winds',  text: 'Every Port you hold pays 2 more Income.' },
+      { id: 'landfall',   name: 'Landfall',     text: 'Gain 2 Tribute whenever you claim unheld ground.' },
+      { id: 'pressgang',  name: 'Press Gang',   text: 'Outriders and Corsairs cost 1 less to raise.' },
+      { id: 'farshores',  name: 'Far Shores',   text: 'Ground you conquer is never restive.' },
+      { id: 'saltroads',  name: 'Salt Roads',   text: 'Every region you hold beyond your fifth pays +1 Income.' },
+      { id: 'wreckers',   name: 'Wreckers',     text: 'Gain 1 Tribute for every attacking host you destroy while defending.' },
+      { id: 'opensea',    name: 'Open Sea',     text: 'The sprawl tax on your XP is halved.' },
+      { id: 'flotilla',   name: 'Flotilla',     text: 'You feed 3 more hosts free of upkeep.' }
     ]
   }
 };
@@ -2867,6 +3320,7 @@ const Rules = {
     for (const lvl in TIER_UNLOCKS) {
       if (p.level >= +lvl && TIER_UNLOCKS[lvl].marchBonus) n += TIER_UNLOCKS[lvl].marchBonus;
     }
+    if (p.patronId === 'sael') n += 1;
     return n;
   },
 
@@ -2971,7 +3425,13 @@ const Rules = {
       if (Rules.hasBoon(p, 'highroads')) total += 1;
       total += Rules.countUnit(rs, 'caravaneer');
       if (Rules.hasBoon(p, 'caravan')) total += Rules.countUnit(rs, 'outrider');
+      if (def.type === 'port') {
+        if (p.patronId === 'sael') total += 1;
+        if (Rules.hasBoon(p, 'tradewinds')) total += 2;
+      }
+      if (def.type === 'waste' && Rules.hasBoon(p, 'barrowland')) total += 2;
     }
+    if (Rules.hasBoon(p, 'saltroads')) total += Math.max(0, Rules.regionsOf(pi).length - 5);
     return total;
   },
 
@@ -2981,8 +3441,11 @@ const Rules = {
      fed, while a compact defender pays almost nothing. It is also the sink
      the economy was missing — Tribute now has somewhere to go. */
   upkeepFor(pi) {
-    const free = UPKEEP_FREE + Rules.regionsOf(pi).length;
+    const free = UPKEEP_FREE + Rules.regionsOf(pi).length
+      + (Rules.hasBoon(G.players[pi], 'flotilla') ? 3 : 0);
     let hosts = Rules.totalHosts(pi);
+    // the dead do not eat
+    hosts -= Rules.regionsOf(pi).reduce((a, id) => a + Rules.countUnit(G.regions[id], 'revenant'), 0);
     if (LEVY_MODE === 'upkeep') {
       hosts -= Rules.regionsOf(pi).reduce((a, id) => a + Rules.countUnit(G.regions[id], 'levy'), 0);
     }
@@ -3029,7 +3492,9 @@ const Rules = {
   awardXP(pi, amount, reason) {
     const p = G.players[pi];
     if (p.surrendered || amount <= 0) return;
-    const scaled = Math.max(1, Math.round(amount * xpRate(Rules.regionsOf(pi).length)));
+    const held = Rules.regionsOf(pi).length;
+    const scaled = Math.max(1, Math.round(amount *
+      xpRate(Rules.hasBoon(p, 'opensea') ? held / 2 : held)));
     p.xp += scaled;
     p.xpThisMatch += scaled;
     if (reason) Rules.log(`${p.name} +${scaled} XP — ${reason}.`, 'xp', pi);
@@ -3115,7 +3580,8 @@ const Rules = {
     let freeUsed = false;
     if (!skipFree && unitId === 'levy' && !p.freeLevyUsed) {
       if ((Rules.hasBoon(p, 'enmasse') && def.type === 'throne') ||
-          (Rules.hasBoon(p, 'granary') && def.type === 'farmland')) {
+          (Rules.hasBoon(p, 'granary') && def.type === 'farmland') ||
+          (Rules.hasBoon(p, 'palehost') && def.type === 'shrine')) {
         cost = 0;
         freeUsed = true;
       }
@@ -3126,6 +3592,8 @@ const Rules = {
        Math.max(0, ...) which turned a 1-cost Levy free and let a player raise
        an unbounded army wherever the Champion stood. */
     if (Rules.hasBoon(p, 'levies')) cost = Math.max(1, cost - 1);
+    if (unitId === 'zealot' && Rules.hasBoon(p, 'mourners')) cost = Math.max(1, cost - 1);
+    if ((unitId === 'outrider' || unitId === 'corsair') && Rules.hasBoon(p, 'pressgang')) cost = Math.max(1, cost - 1);
     if (Rules.hasPerk(p, 'inspiring') && Rules.championAt(pi, regionId)) cost = Math.max(1, cost - 1);
     return { cost, onType, freeUsed, needsHolding: !onType && rs.holding < 1 };
   },
@@ -3170,14 +3638,18 @@ const Rules = {
     return { ok: true, max: p.tribute };
   },
 
-  monumentXP(amount) { return Math.floor(amount / MONUMENT_RATE); },
+  monumentXP(amount, pi) {
+    const base = Math.floor(amount / MONUMENT_RATE);
+    const p = pi === undefined || pi === null ? null : G.players[pi];
+    return p && Rules.hasBoon(p, 'ossuary') ? Math.floor(base * 1.5) : base;
+  },
 
   raiseMonument(pi, amount) {
     const chk = Rules.canMonument(pi);
     if (!chk.ok) return chk;
     const p = G.players[pi];
     amount = Math.max(MONUMENT_MIN, Math.min(Math.floor(amount), p.tribute));
-    const xp = Rules.monumentXP(amount);
+    const xp = Rules.monumentXP(amount, pi);
     p.tribute -= amount;
     p.monumentUsed = true;
     Rules.log(`${p.name} raises monuments worth ${amount} Tribute.`, 'monument', pi);
@@ -3238,7 +3710,7 @@ const Rules = {
     const p = G.players[pi];
     const bonus = Rules.marchBonusFor(pi);
     if (unitId === 'outrider') return (Rules.hasBoon(p, 'swiftruin') ? 3 : 2) + bonus;
-    if (unitId === 'stormrider') return 2 + bonus;
+    if (unitId === 'stormrider' || unitId === 'corsair') return 2 + bonus;
     return 1 + bonus;
   },
 
@@ -3346,12 +3818,17 @@ const Rules = {
     const p = G.players[pi];
 
     if (Rules.hasBoon(p, 'reave')) p.tribute += 2;
+    if (prev === null && Rules.hasBoon(p, 'landfall')) p.tribute += 2;
 
     /* Unrest — the brake on runaway conquest. Ground taken off a rival produces
        no Income and cannot be developed until you have held it through one
        of your own Turns. Taking five regions in a Round now costs you a Round
        of their income, so a blitz has to be worth more than it earns. */
-    if (prev !== null && prev !== pi) rs.unrest = 1;
+    if (prev !== null && prev !== pi && !Rules.hasBoon(p, 'farshores')) rs.unrest = 1;
+    if (prev !== null && prev !== pi && !G.players[prev].surrendered &&
+        Rules.hasBoon(G.players[prev], 'lastrites')) {
+      Rules.awardXP(prev, 6, `Last Rites for ${REGIONS[regionId].name}`);
+    }
 
     Rules.awardXP(pi, prev === null ? XP_AWARDS.captureFree : XP_AWARDS.captureFoe,
       `${REGIONS[regionId].name} taken`);
@@ -3461,7 +3938,13 @@ const Rules = {
     if (G.round > ROUND_LIMIT) {
       G.phase = 'gameover';
       G.finalScores = G.players.map((p, i) => ({ player: i, ...Rules.scoreFor(i) }));
-      const best = [...G.finalScores].sort((a, b) => b.total - a.total)[0];
+      /* A tied score goes to the greater legend — total XP earned — and then
+         to the fuller treasury. Before this the earlier seat won every tie,
+         which nobody at the table could have known or played around. */
+      const best = [...G.finalScores].sort((a, b) =>
+        (b.total - a.total) ||
+        (G.players[b.player].xp - G.players[a.player].xp) ||
+        (G.players[b.player].tribute - G.players[a.player].tribute))[0];
       G.winner = best.player;
       Rules.log(`The Round limit is reached. ${G.players[best.player].name} scores ${best.total}.`, 'victory', best.player);
       return true;
@@ -3483,7 +3966,8 @@ const Rules = {
       let tithe = 0;
       for (const id of Rules.regionsOf(q.index)) {
         const t = REGIONS[id].type;
-        if (t === 'shrine') Rules.awardXP(q.index, XP_AWARDS.shrineTurn, `the shrine at ${REGIONS[id].name}`);
+        if (t === 'shrine') Rules.awardXP(q.index,
+          XP_AWARDS.shrineTurn + (Rules.hasBoon(q, 'longmemory') ? 2 : 0), `the shrine at ${REGIONS[id].name}`);
         if (Rules.hasBoon(q, 'tithe') && (t === 'shrine' || t === 'throne')) tithe += 2;
       }
       if (tithe) Rules.awardXP(q.index, tithe, 'Tithe');
@@ -3562,6 +4046,7 @@ const Rules = {
    have run about ten times as many games. */
 let RNG = Math.random;
 function setRNG(fn) { RNG = fn || Math.random; }
+function getRNG() { return RNG; }
 
 function d6() { return 1 + Math.floor(RNG() * 6); }
 
@@ -3658,6 +4143,7 @@ const Combat = {
 
     if (p && Rules.hasBoon(p, 'fortified') && rs.holding >= 2) { dice += 1; notes.push('+1 Fortified'); }
     if (c.force.thunderguard) notes.push('Sundered by Thunderguard');
+    if (c.force.tidecaller && dice > 1) { dice -= 1; notes.push('-1 Surge'); }
 
     let bonus = 0;
     if (LEVY_MODE === 'bonus') {
@@ -3697,8 +4183,11 @@ const Combat = {
 
     const pairs = [];
     let atkLoss = 0, defLoss = 0;
+    const dread = !c.dreadUsed && Rules.hasBoon(G.players[c.attacker], 'dreadname');
+    if (dread) { c.dreadUsed = true; ap.notes.push('Dread Name takes the ties'); }
     for (let i = 0; i < Math.min(atkAdj.length, defAdj.length); i++) {
-      const win = atkAdj[i] > defAdj[i];        // ties go to the defender
+      // ties go to the defender — unless Dread Name gives the opening tie away
+      const win = atkAdj[i] > defAdj[i] || (dread && atkAdj[i] === defAdj[i]);
       pairs.push({ a: atkAdj[i], d: defAdj[i], attackerWins: win });
       if (win) defLoss++; else atkLoss++;
     }
@@ -3754,6 +4243,12 @@ const Combat = {
        defender nothing. It now only guards the degenerate case where no dice
        were compared at all. */
     if (atkLoss === 0 && defLoss === 0 && pairs.length === 0) atkLoss = 1;
+
+    // Raid: Corsairs are paid out of the defender's own treasury
+    if (c.force.corsair && defLoss > 0 && c.defender !== null) {
+      const victim = G.players[c.defender];
+      if (victim.tribute > 0) { victim.tribute -= 1; p.tribute += 1; ap.notes.push('Raid +1 Tribute'); }
+    }
 
     p.firstAttackDone = true;
     c.lastRoll = { atk, def, atkAdj, defAdj, pairs, ap, dp, atkLoss, defLoss };
@@ -3824,14 +4319,29 @@ const Combat = {
       if (pool[u] <= 0) delete pool[u];
       removed += n;
     }
+    /* Patron effects that key off the dead. */
+    const A = G.players[c.attacker];
+    const D = c.defender === null ? null : G.players[c.defender];
+    const lostMult = q => (q && q.patronId === 'morwen') ? 2 : 1;
+    /* latched on the battle: a Reaper that dies in this very exchange still reaped */
+    c.atkReaper = c.atkReaper || (c.force.reaper || 0) > 0 || (job.side === 'attacker' && (assignment.reaper || 0) > 0);
+    c.defReaper = c.defReaper || Rules.countUnit(G.regions[c.target], 'reaper') > 0 || (job.side === 'defender' && (assignment.reaper || 0) > 0);
+
     if (job.side === 'attacker') {
       c.atkLost += removed;
-      Rules.awardXP(c.attacker, removed * XP_AWARDS.hostLost, 'hosts lost');
-      if (c.defender !== null) Rules.awardXP(c.defender, removed * XP_AWARDS.hostDestroyed, 'hosts destroyed');
+      Rules.awardXP(c.attacker, removed * XP_AWARDS.hostLost * lostMult(A), 'hosts lost');
+      if (D) Rules.awardXP(c.defender, removed * XP_AWARDS.hostDestroyed, 'hosts destroyed');
+      if (Rules.hasBoon(A, 'gravetithe')) A.tribute += removed;
+      if (D && Rules.hasBoon(D, 'wreckers')) D.tribute += removed;
     } else {
       c.defLost += removed;
       Rules.awardXP(c.attacker, removed * XP_AWARDS.hostDestroyed, 'hosts destroyed');
-      if (c.defender !== null) Rules.awardXP(c.defender, removed * XP_AWARDS.hostLost, 'hosts lost');
+      if (D) Rules.awardXP(c.defender, removed * XP_AWARDS.hostLost * lostMult(D), 'hosts lost');
+      if (D && Rules.hasBoon(D, 'gravetithe')) D.tribute += removed;
+    }
+    if (removed > 0) {
+      if (c.atkReaper) Rules.awardXP(c.attacker, removed * 2, 'the Harvest');
+      if (c.defReaper && D) Rules.awardXP(c.defender, removed * 2, 'the Harvest');
     }
     Combat.pumpQueue();
   },
@@ -3969,31 +4479,50 @@ const AI = {
       blurb: 'Attacks early and often. Builds little, and would rather take your Forge than raise one.',
       patron: 'vashtar',
       attack: 1.5, build: 0.7, raise: 1.2, risk: 0.9, reserve: 3,
-      units: ['zealot', 'outrider', 'stormrider', 'thunderguard', 'levy'],
+      units: ['zealot', 'tidecaller', 'outrider', 'stormrider', 'corsair', 'thunderguard', 'reaper', 'revenant', 'levy'],
       championWeight: 1.45,
       perks: ['vanguard', 'duelist', 'relentless', 'reaver', 'swift', 'warlord', 'undying', 'standard'],
-      boons: ['warpath', 'stormseye', 'secondwind', 'levies', 'enmasse', 'reave', 'swiftruin', 'fury']
+      boons: ['warpath', 'stormseye', 'secondwind', 'levies', 'enmasse', 'reave', 'swiftruin', 'fury',
+              'dreadname', 'gravetithe', 'palehost', 'mourners', 'lastrites', 'longmemory', 'ossuary', 'barrowland',
+              'farshores', 'pressgang', 'landfall', 'flotilla', 'tradewinds', 'saltroads', 'wreckers', 'opensea']
     },
     magnate: {
       name: 'Magnate',
       blurb: 'Develops relentlessly and fortifies everything. Slow to start, brutal if left alone.',
       patron: 'ilthara',
       attack: 1.0, build: 1.5, raise: 1.2, risk: 1.05, reserve: 3,
-      units: ['phalanx', 'gatewarden', 'caravaneer', 'warden', 'levy'],
+      units: ['phalanx', 'gatewarden', 'caravaneer', 'revenant', 'reaper', 'tidecaller', 'corsair', 'warden', 'levy'],
       championWeight: 0.6,
       perks: ['bulwark', 'inspiring', 'undying', 'warlord', 'standard', 'duelist', 'swift', 'vanguard'],
-      boons: ['coffers', 'highroads', 'masons', 'fortified', 'unbroken', 'granary', 'tithe', 'caravan']
+      boons: ['coffers', 'highroads', 'masons', 'fortified', 'unbroken', 'granary', 'tithe', 'caravan',
+              'longmemory', 'ossuary', 'barrowland', 'palehost', 'gravetithe', 'lastrites', 'mourners', 'dreadname',
+              'tradewinds', 'saltroads', 'flotilla', 'opensea', 'landfall', 'wreckers', 'farshores', 'pressgang']
     },
     opportunist: {
       name: 'Opportunist',
       blurb: 'Takes whatever is cheapest to take. Punishes anyone who leaves a border thin.',
       patron: 'vashtar',
       attack: 1.1, build: 1.05, raise: 1.1, risk: 1.1, reserve: 3,
-      units: ['outrider', 'phalanx', 'siege', 'zealot', 'levy'],
+      units: ['tidecaller', 'outrider', 'corsair', 'phalanx', 'siege', 'reaper', 'zealot', 'revenant', 'levy'],
       championWeight: 1.0,
       perks: ['warlord', 'reaver', 'swift', 'vanguard', 'undying', 'duelist', 'bulwark', 'standard'],
-      boons: ['reave', 'secondwind', 'coffers', 'fortified', 'swiftruin', 'masons', 'warpath', 'tithe']
+      boons: ['reave', 'secondwind', 'coffers', 'fortified', 'swiftruin', 'masons', 'warpath', 'tithe',
+              'landfall', 'farshores', 'saltroads', 'tradewinds', 'flotilla', 'pressgang', 'opensea', 'wreckers',
+              'dreadname', 'gravetithe', 'palehost', 'longmemory', 'lastrites', 'barrowland', 'ossuary', 'mourners']
     }
+  },
+
+  /* Feature switches for the evaluation. FEATURES is what ships; seatFeatures
+     overrides it for one seat, which is how the arena duels two VERSIONS of
+     the AI on the same seeds (node tools/arena.js --feature batchRaise).
+     Add a new behaviour behind a switch here, measure it, then flip the
+     default — never judge an AI change from the round robin alone. */
+  FEATURES: { batchRaise: true, simAttack: 0, blessFirst: true },
+  SIM_GATE: 0.5,
+  seatFeatures: {},
+  feat(pi, name) {
+    const o = AI.seatFeatures[pi];
+    return o && name in o ? o[name] : !!AI.FEATURES[name];
   },
 
   isAI(pi) { return pi !== null && pi !== undefined && !!AI.seats[pi]; },
@@ -4091,6 +4620,92 @@ const AI = {
   },
 
 
+  /* ================= lookahead: play the battle before fighting it =========
+     The engine is DOM-free and its whole state is plain JSON, so the AI can
+     do what a careful player does in their head: fight the assault a few
+     dozen times and see how it tends to end. The estimate uses the real
+     resolver, so every unit rule, Boon, Perk and Holding is priced exactly as
+     the game prices it — no hand-tuned "defence value" to drift out of date.
+
+     Two things keep it honest. The dice come from a PRIVATE stream seeded by
+     the matchup, so a trial never consumes the match's own dice and a seeded
+     game stays reproducible. And the state is restored IN PLACE, so every
+     reference anything else holds into G is still valid afterwards. */
+
+  _simMemo: new Map(),
+
+  restoreInto(dst, src) {
+    if (Array.isArray(dst)) {
+      dst.length = src.length;
+      for (let i = 0; i < src.length; i++) dst[i] = AI._restoreVal(dst[i], src[i]);
+      return dst;
+    }
+    for (const k in dst) if (!(k in src)) delete dst[k];
+    for (const k in src) dst[k] = AI._restoreVal(dst[k], src[k]);
+    return dst;
+  },
+  _restoreVal(cur, val) {
+    if (val === null || typeof val !== 'object') return val;
+    if (cur !== null && typeof cur === 'object' && Array.isArray(cur) === Array.isArray(val)) {
+      return AI.restoreInto(cur, val);
+    }
+    return val;
+  },
+
+  simAssault(pi, src, to, stack, champion, trials) {
+    const rs = G.regions[to];
+    const key = [pi, src, to, JSON.stringify(stack), JSON.stringify(rs.hosts), rs.holding,
+      champion ? 1 : 0, G.players[pi].level, G.players[pi].boons.length,
+      G.players[pi].firstAttackDone ? 1 : 0].join('|');
+    const hit = AI._simMemo.get(key);
+    if (hit) return hit;
+
+    trials = trials || 16;
+    let h = 2166136261;
+    for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+    const realRNG = getRNG();
+    setRNG(mulberry32(h));
+    /* the chronicle is by far the largest thing in G and a trial has no use
+       for it — set it aside so each restore copies a few hundred bytes */
+    const realLog = G.log;
+    G.log = [];
+    const snap = JSON.stringify(G);
+
+    let wins = 0, atkLost = 0, defLost = 0, champDeaths = 0;
+    try {
+      for (let t = 0; t < trials; t++) {
+        const c = Combat.begin(pi, src, to, stack, { champion });
+        for (let guard = 0; guard < 80 && !c.finished; guard++) {
+          if (AI.wouldWithdraw(c)) Combat.withdraw();
+          else { Combat.exchange(); AI.autoCasualties(); }
+        }
+        if (c.captured) wins++;
+        atkLost += c.atkLost; defLost += c.defLost;
+        if (champion && G.players[pi].championDead) champDeaths++;
+        AI.restoreInto(G, JSON.parse(snap));
+        G.log.length = 0;
+      }
+    } finally {
+      AI.restoreInto(G, JSON.parse(snap));
+      G.log = realLog;
+      setRNG(realRNG);
+    }
+    const out = { pWin: wins / trials, atkLost: atkLost / trials, defLost: defLost / trials,
+                  pChampionDies: champDeaths / trials };
+    if (AI._simMemo.size > 4000) AI._simMemo.clear();
+    AI._simMemo.set(key, out);
+    return out;
+  },
+
+  /* press on while the odds hold; a Warmonger holds on longer than a Magnate */
+  wouldWithdraw(c) {
+    const P = AI.personality(c.attacker);
+    const mine = stackSize(c.force);
+    const theirs = Rules.hostCount(G.regions[c.target]);
+    return mine > 0 && theirs > 0 && mine < theirs * (0.75 * P.risk) && mine < 4;
+  },
+
+
   /* ================= valuation, in victory points — PARKED, NOT IN USE
      Kept because the reasoning is sound and the diagnosis behind it holds.
      Wiring it in wholesale made the AI markedly worse (see CLAUDE.md).
@@ -4170,7 +4785,13 @@ const AI = {
 
   /* ================= action selection ================= */
 
-  bestAction(pi) {
+  /* bestAction is what a turn asks for; pickAction is the evaluation itself.
+     They are separate so follow-up evaluations inside one action (see the
+     batch raise in turnStep) are not counted as extra decisions by the
+     arena's diagnosis, which wraps bestAction. */
+  bestAction(pi) { return AI.pickAction(pi); },
+
+  pickAction(pi) {
     const p = G.players[pi];
     const P = AI.personality(pi);
     const mine = Rules.regionsOf(pi);
@@ -4204,8 +4825,20 @@ const AI = {
           // the attacker rolls three dice to the defender's two, so rough
           // parity is already a favourable trade — demanding a big surplus
           // was why these opponents never fought at all
-          if (avail < def * 0.85 * P.risk) continue;
-          score = (score + 10 + (avail - def) * 2.2) * P.attack;
+          const sim = AI.feat(pi, 'simAttack');
+          if (sim) {
+            /* Fight it first. The old gate compared head-counts, which is why
+               the Warmonger attacked at 76% of the defender's strength and
+               traded at 0.82 — it could not see walls, Shieldwall or a
+               Champion on the far side of the border. */
+            const est = AI.simAssault(pi, src, to, force, false);
+            if (est.pWin < AI.SIM_GATE / P.risk) continue;
+            if (sim === 2) score = ((score + 10) * est.pWin * 1.25 + (est.defLost - est.atkLost) * 2.2) * P.attack;
+            else score = (score + 10 + (avail - def) * 2.2) * P.attack;
+          } else {
+            if (avail < def * 0.85 * P.risk) continue;
+            score = (score + 10 + (avail - def) * 2.2) * P.attack;
+          }
           if (REGIONS[to].type === 'throne') score += 20;
           if (rs.holding > 0) score += rs.holding * 2;
         }
@@ -4364,7 +4997,22 @@ const AI = {
 
     if (act.kind === 'build') Rules.buildHolding(pi, act.id);
     else if (act.kind === 'monument') Rules.raiseMonument(pi, act.amount);
-    else if (act.kind === 'raise') Rules.raiseHost(pi, act.id, act.unit);
+    else if (act.kind === 'raise') {
+      Rules.raiseHost(pi, act.id, act.unit);
+      /* A human raises as many hosts as they like in ONE action — the raise
+         dialog loops raiseHost and spends a single action. The AI used to pay
+         an action per host, so 58-62% of its actions were single purchases
+         and it played with roughly half a turn. Keep buying here for as long
+         as raising at this same region is still what it would choose next:
+         the priorities are unchanged, only the action cost is. */
+      if (AI.feat(pi, 'batchRaise')) {
+        for (let guard = 0; guard < 40; guard++) {
+          const more = AI.pickAction(pi);
+          if (!more || more.kind !== 'raise' || more.id !== act.id) break;
+          if (!Rules.raiseHost(pi, more.id, more.unit).ok) break;
+        }
+      }
+    }
     else if (act.kind === 'move') {
       if (!Object.keys(act.stack).length) { UI.endTurn(); return; }
       /* Bring the Champion when the fight is worth it and losing it is
@@ -4434,8 +5082,7 @@ const AI = {
     const mine = stackSize(c.force);
     const theirs = Rules.hostCount(G.regions[c.target]);
 
-    // press on while the odds hold; a Warmonger holds on longer than a Magnate
-    if (mine > 0 && theirs > 0 && mine < theirs * (0.75 * P.risk) && mine < 4) {
+    if (AI.wouldWithdraw(c)) {
       Combat.withdraw();
     } else {
       Combat.exchange();
@@ -4471,7 +5118,13 @@ const AI = {
       b, s: prefs.indexOf(b.id) >= 0 ? prefs.length - prefs.indexOf(b.id) : 0
     })).sort((x, y) => y.s - x.s)[0];
 
-    const bestBless = pb.blessings.length ? rank(pb.blessings, P.boons) : null;
+    /* Rank against THIS patron's Blessings only. P.boons lists every patron's
+       so one temperament can serve any god, and ranking against the whole
+       list inflated every Blessing's score past any Perk — measured: it moved
+       the round robin from 10/34/16 to 22/21/17 by accident. */
+    const mine = Rules.patronOf(p).boons.map(b => b.id);
+    const boonPrefs = P.boons.filter(id => mine.includes(id));
+    const bestBless = pb.blessings.length ? rank(pb.blessings, boonPrefs) : null;
     const bestPerk = (!p.championDead && pb.perks.length) ? rank(pb.perks, P.perks || []) : null;
 
     let pick;
@@ -4479,7 +5132,7 @@ const AI = {
     else if (!bestBless) pick = bestPerk.b;
     else {
       // championWeight above 1 means this temperament would rather build the hero
-      const perkScore = (bestPerk.s + 1) * P.championWeight;
+      const perkScore = (bestPerk.s + 1) * P.championWeight * (AI.feat(pb.player, 'blessFirst') ? 0.34 : 1);
       const blessScore = bestBless.s + 1;
       pick = perkScore > blessScore ? bestPerk.b : bestBless.b;
     }
@@ -4650,7 +5303,7 @@ const MapView = {
     const steel = '#a5bdc6', bright = '#e7f1ed', bronze = '#c99551';
     const cloth = colour || '#c98f47';
     const dark = mix(cloth, '#15202c', .42), light = mix(cloth, '#fff1d4', .6);
-    const elite = ['stormrider','thunderguard','gatewarden'].includes(unitId);
+    const elite = ['stormrider','thunderguard','gatewarden','reaper','tidecaller'].includes(unitId);
     const spear = (x, top = -9) => `<path d="M${x},${top + 3} V5.5" stroke="${bronze}" stroke-width=".8"/>
       <path d="M${x},${top} l-1.2,3.6 l1.2,-.7 l1.2,.7 Z" fill="${bright}" stroke-width=".4"/>`;
     const helm = (x, y, crest = false) => `<g transform="translate(${x},${y})">
@@ -4778,6 +5431,59 @@ const MapView = {
           <path d="M-3.6,3.5 V.2 Q-3.5,-1.8 -1.3,-1.8 Q1,-1.7 1,.2 V3.5" fill="${dark}"/>
           <path d="M-2.6,-.6 V3.6 M-1.2,-1 V4 M.1,-.6 V3.6 M-3.3,.5 H.7 M-3.4,2 H.8" stroke="${ivory}" stroke-width=".55"/>
           <path d="M-1.3,1 L-.7,2 L-1.3,3 L-1.9,2 Z" fill="${bronze}" stroke="none"/>`;
+        break;
+      /* Morwen's dead. The Revenant is a Levy that did not stay down: the same
+         spear, a pale shroud where the tunic was, and the faction colour only
+         on the hood and sash. The Reaper reads by its scythe alone. */
+      case 'revenant':
+        figure = `${spear(-6,-10)}
+          <path d="M-3.1,-3.2 L2.4,-3.2 L4.8,5.8 Q.2,7.1 -4.7,5.5 Z" fill="${ivory}"/>
+          <path d="M1,-2.9 L2.6,5.9 L4.5,5.6 L2,-2.7 Z" fill="${shade}" stroke="none"/>
+          <path d="M-3.6,5.3 l1,-1.7 l1,1.9 l1.1,-1.8 l1,1.9 l1.2,-1.7 l1.1,1.5" fill="none" stroke="${ink}" stroke-width=".5"/>
+          <path d="M-3.1,-.2 L3.1,-.8 L3.4,.6 L-3.2,1.3 Z" fill="${cloth}"/>
+          <path d="M-3.6,-4.3 Q-3,-8.3 -.2,-9.2 Q3,-7.8 3.1,-4.3 L1.4,-2.9 H-1.8 Z" fill="${cloth}"/>
+          <path d="M-1.9,-6.2 Q-.2,-7.5 1.6,-6.2 L1.4,-4.3 L.5,-3.5 H-.8 L-1.7,-4.3 Z" fill="${ivory}"/>
+          <path d="M-1,-5.4 h.25 M.55,-5.4 h.25" stroke="${ink}" stroke-width="1"/>
+          <path d="M-.4,-4.1 h.5" stroke="${ink}" stroke-width=".4"/>
+          <path d="M-2.4,-1.6 L-5.7,-.3" fill="none" stroke="${ivory}" stroke-width="1.4"/>`;
+        break;
+      case 'reaper':
+        figure = `<path d="M5.7,5.6 L4,-9.6" stroke="${bronze}" stroke-width=".9"/>
+          <path d="M4.2,-9.5 Q-3.4,-11 -8,-5 Q-2.6,-8 4,-7.4 Z" fill="${bright}"/>
+          <path d="M-3.6,-3.2 L2.6,-3.2 L5,5.8 Q0,7.2 -5.4,5.5 Z" fill="${dark}"/>
+          <path d="M-.8,-2.6 L0,5.9 L-4.2,5.6 Z" fill="${cloth}" stroke="none"/>
+          <path d="M-3.8,-4.2 Q-3.2,-8.4 -.3,-9.2 Q3,-7.8 3,-4.2 L1.3,-2.8 H-2 Z" fill="${cloth}"/>
+          <path d="M-.3,-7.2 Q-2.3,-5.8 -1.8,-4 L.9,-3.4 L1.6,-4.9 Z" fill="${ink}"/>
+          <path d="M-.9,-5.2 h.2 M.45,-5 h.2" stroke="${bright}" stroke-width=".75"/>
+          <path d="M2,-1.5 L4.9,-1.3 M-2.2,-1.2 L5,1.7" fill="none" stroke="${ivory}" stroke-width="1.3"/>`;
+        break;
+      /* Sael's raiders. The Corsair is the only bare-headed figure in the set
+         — a bandana and a raised cutlass — and the Tidecaller carries the
+         trident and stands in its own surf. */
+      case 'corsair':
+        figure = `<path d="M-2,2.5 L-2.9,6 H-.6 L.3,3.1 L1,6 H3.2 L2,2.5" fill="${shade}"/>
+          <path d="M-2.4,-3 L2,-3.2 L3.2,.2 L2.4,4 L-3,4 L-3.4,-.6 Z" fill="${ivory}"/>
+          <path d="M-2.4,-3 L-.9,-2.6 L-.7,3.9 L-3,3.9 L-3.4,-.6 Z M1.1,-2.9 L2,-3.2 L3.2,.2 L2.4,4 L1.3,3.9 Z" fill="${cloth}"/>
+          <path d="M-3.1,1 H2.8 L2.6,2.2 H-3 Z" fill="${bronze}"/>
+          <circle cx="-.2" cy="-5" r="2.1" fill="${ivory}"/>
+          <path d="M-2.4,-5.3 Q-.2,-8.3 2,-5.5 L1.9,-4.9 H-2.3 Z" fill="${cloth}"/>
+          <path d="M1.8,-5.4 L4,-4.9 L3.3,-3.6 L1.8,-4.7 Z" fill="${cloth}"/>
+          <path d="M-.9,-4.2 h.25 M.5,-4.2 h.25" stroke="${ink}" stroke-width=".7"/>
+          <path d="M2,-1.6 L5,-3.6" fill="none" stroke="${ivory}" stroke-width="1.4"/>
+          <path d="M4.6,-3.1 Q8.8,-6 7,-10.2 Q6.5,-6.6 3.9,-4.3 Z" fill="${bright}"/>
+          <path d="M3.5,-2.9 L5.7,-4.7" stroke="${bronze}" stroke-width="1.1"/>
+          <circle cx="-4.6" cy=".6" r="2.7" fill="${bronze}"/>
+          <circle cx="-4.6" cy=".6" r="1.1" fill="${bright}"/>`;
+        break;
+      case 'tidecaller':
+        figure = `<path d="M5.5,5.6 V-6.2" stroke="${bronze}" stroke-width=".9"/>
+          <path d="M3.3,-6.3 V-8.7 M5.5,-6 V-10.2 M7.7,-6.3 V-8.7 M3.3,-6.3 Q5.5,-4.5 7.7,-6.3" fill="none" stroke="${bright}" stroke-width=".95"/>
+          <path d="M-3.4,-3.2 L2.4,-3.2 L4.6,5.8 Q0,7.1 -5,5.5 Z" fill="${cloth}"/>
+          <path d="M-.6,-2.6 L.2,4 L-3.6,4 Z" fill="${light}" stroke="none"/>
+          <path d="M-5.3,4.9 Q-4.3,2.5 -2.9,4.1 Q-1.8,2.3 -.4,4.1 Q.8,2.3 2.2,4.1 Q3.4,2.5 4.3,4.6 L4.6,5.8 Q0,7.1 -5,5.5 Z" fill="${steel}"/>
+          <path d="M-4.6,-3.2 L-1.8,-4.2 L1.6,-4.2 L4,-3 L2.6,-1.4 H-3.4 Z" fill="${steel}"/>
+          ${helm(0,-5.7,true)}
+          <path d="M2.2,-1.7 L5.3,-1" fill="none" stroke="${ivory}" stroke-width="1.4"/>`;
         break;
       default: return MapView.troopEmblem(unitId, cloth);
     }
@@ -5266,6 +5972,36 @@ const MapView = {
     return out;
   },
 
+  /* The far view. With the whole board on a portrait phone a board unit is
+     about a quarter of a pixel: names, miniatures and counts all fall under
+     the size anything can be read at, and the overview — the one view meant
+     for judging the war at a glance — was a field of coloured smudges. This
+     is what each territory shows INSTEAD at that zoom: one count of hosts,
+     sized in board units so it lands at ~13px on screen, a crown if a
+     Champion stands there, and a pip per Holding tier. The stylesheet swaps
+     the two representations on #map.lod-far; nothing is rebuilt on zoom. */
+  partFar(id, rs, c, owner) {
+    const n = Rules.hostCount(rs);
+    const col = owner !== null ? G.players[owner].colour.hex : '#8b8b96';
+    const champ = G.players.some(p => !p.surrendered && !p.championDead && p.championAt === id);
+    const throne = REGIONS[id].type === 'throne';
+    let out = `<g class="far-badge" transform="translate(${c.x},${c.y})">`;
+    if (n > 0) {
+      out += `<circle class="far-disc" r="36" fill="${col}"/>`
+           + `<text class="far-n" x="0" y="16">${n}</text>`;
+    } else {
+      out += `<circle class="far-disc far-empty" r="14" fill="${col}"/>`;
+    }
+    if (champ || throne) {
+      out += `<path class="far-crown${champ ? '' : ' far-seat'}" transform="translate(0,-62) scale(2.6)"
+        d="M-9 6l-2-12 6 5 5-9 5 9 6-5-2 12z"/>`;
+    }
+    for (let i = 0; i < rs.holding; i++) {
+      out += `<rect class="far-pip" x="${(i - (rs.holding - 1) / 2) * 20 - 7}" y="46" width="14" height="14" rx="2"/>`;
+    }
+    return out + `</g>`;
+  },
+
   partChampion(id, c) {
     const champ = G.players.findIndex(p => !p.surrendered && !p.championDead && p.championAt === id);
     if (champ < 0) return '';
@@ -5355,6 +6091,7 @@ const MapView = {
     out += MapView.partUnrest(rs, c);
     out += MapView.partTroops(id, rs, c, owner);
     out += MapView.partChampion(id, c);
+    out += MapView.partFar(id, rs, c, owner);
     return out + `</g>`;
   },
 
@@ -5834,9 +6571,13 @@ const UI = {
   renderTop() {
     const compact = UI.phone();
 
+    /* The last Round is when a close race is decided, and nothing said so. */
+    const finalRound = G.round >= ROUND_LIMIT && G.phase !== 'gameover';
     $('#tb-round').textContent = compact
-      ? `R${G.round}/${ROUND_LIMIT}`
-      : `Round ${G.round} of ${ROUND_LIMIT} · Turn ${G.turnIndex + 1}`;
+      ? (finalRound ? 'FINAL' : `R${G.round}/${ROUND_LIMIT}`)
+      : (finalRound ? `Final Round · Turn ${G.turnIndex + 1}`
+                    : `Round ${G.round} of ${ROUND_LIMIT} · Turn ${G.turnIndex + 1}`);
+    $('#tb-round').classList.toggle('final', finalRound);
 
     /* Chips are buttons now: everything the old "you" panel carried — patron,
        Boons, Perks, Domain progress, Surrender — lives one tap inside your own
@@ -5852,9 +6593,9 @@ const UI = {
       if (compact) {
         return `<button class="${cls.join(' ')}" type="button" data-i="${i}" aria-label="${esc(aria)}">
           <span class="dot" style="background:${p.colour.hex}"></span>
-          <span class="n lv">${p.level}</span>
-          <span class="n tr">${p.tribute}</span>
-          <span class="n vp">${s.total}</span>
+          <span class="n lv">${p.level}<i>LV</i></span>
+          <span class="n tr">${p.tribute}<i>TR</i></span>
+          <span class="n vp">${s.total}<i>VP</i></span>
         </button>`;
       }
 
@@ -6049,6 +6790,13 @@ const UI = {
       const x = v.r.width / 2 - c.cx * scale;
       const y = v.r.height / 2 - c.cy * scale;
       svg.style.transform = `translate(${x}px,${y}px) scale(${scale})`;
+      /* Below about 0.4 screen px per board unit nothing drawn at piece scale
+         is legible, so the board switches to its far representation (see
+         MapView.partFar). Hysteresis keeps a pinch that hovers on the
+         threshold from flickering between the two. */
+      const far = svg.classList.contains('lod-far');
+      if (!far && scale < 0.40) svg.classList.add('lod-far');
+      else if (far && scale > 0.46) svg.classList.remove('lod-far');
       /* Used to hide .land-tex/.sea-tex above k=1.02 to make the commit paint
          cheaper. Measured: it saved ~1-2ms, and cost real texture on the board
          for as long as a player stayed zoomed in at all — which is most of
@@ -6805,7 +7553,8 @@ const UI = {
     const icons = acts.map((a, i) =>
       '<button class="as-ico' + (a.why ? ' is-off' : '') + '" type="button" data-i="' + i + '"'
       + ' aria-label="' + esc(a.label) + (a.why ? ' — unavailable' : '') + '">'
-      + Icons.svg(a.id, 22, 'currentColor') + '</button>').join('');
+      + Icons.svg(a.id, 22, 'currentColor')
+      + '<span class="as-cap">' + UI.ACTION_CAPS[a.id] + '</span></button>').join('');
 
     UI.pv.open({
       kind: 'region', ctx: id, variant: 'strip', aria: def.name + ' actions',
@@ -6873,6 +7622,11 @@ const UI = {
       }
     });
   },
+
+  /* Six bare icons asked the player to learn a private alphabet before
+     taking a first turn. One word under each costs 11px of strip height. */
+  ACTION_CAPS: { march: 'March', raise: 'Raise', build: 'Build',
+                 monument: 'Monument', hold: 'Hold', endturn: 'End turn' },
 
   /* One line on what each action does, shown under the slider when the action
      is available. The refusal reason takes this slot when it is not. */
@@ -7101,9 +7855,15 @@ const UI = {
       title: 'How this works', aria: 'How to play',
       body:
         '<div class="pv-foot top">'
-        + '<button class="ghost" type="button" data-x="tut">Walkthrough</button>'
+        + '<button class="ghost" type="button" data-x="tut">Rules</button>'
+        + (typeof G !== 'undefined' && G && G.phase !== 'gameover'
+            ? '<button class="ghost" type="button" data-x="quit">Save &amp; quit</button>' : '')
         + (spd ? '<button class="ghost" type="button" data-x="spd">Speed: '
             + esc(spd.name()) + '</button>' : '')
+        + (window.Juice ? '<button class="ghost" type="button" data-x="snd">Sound: '
+            + (Juice.sound ? 'On' : 'Off') + '</button>'
+            + (navigator.vibrate ? '<button class="ghost" type="button" data-x="hap">Haptics: '
+            + (Juice.haptics ? 'On' : 'Off') + '</button>' : '') : '')
         + '</div>'
       + '<p class="pv-note">Attacker rolls up to 3 dice, defender up to 2. Highest against '
         + 'highest — <b>ties go to the defender</b>. Tribute arrives every Turn and never '
@@ -7131,6 +7891,17 @@ const UI = {
         /* Updates its own label in place rather than rebuilding the sheet —
            a repaint here would scroll the reader back to the top. */
         if (b) b.addEventListener('click', () => { b.textContent = 'Speed: ' + UI.speedCtl.cycle(); });
+        const q = card.querySelector('[data-x="quit"]');
+        if (q) q.addEventListener('click', () => {
+          if (window.Meta) { Meta._savedSeq = -1; Meta.autosave(); }
+          location.reload();
+        });
+        const sn = card.querySelector('[data-x="snd"]');
+        if (sn) sn.addEventListener('click', () => {
+          Juice.setSound(!Juice.sound); sn.textContent = 'Sound: ' + (Juice.sound ? 'On' : 'Off'); });
+        const hp = card.querySelector('[data-x="hap"]');
+        if (hp) hp.addEventListener('click', () => {
+          Juice.setHaptics(!Juice.haptics); hp.textContent = 'Haptics: ' + (Juice.haptics ? 'On' : 'Off'); });
       }
     });
   },
@@ -7152,13 +7923,13 @@ const UI = {
     let tip;
 
     if (AI.isAI(pi)) {
-      tip = `<b>${esc(p.name)}</b> is thinking. Watch the map — the chronicle on the right records every move.`;
+      tip = `<b>${esc(p.name)}</b> is taking ${isReaction ? 'a Reaction' : 'the Turn'}. The chronicle (top right) records every move.`;
     } else if (UI.mode === 'march') {
       tip = `Dashed borders are legal destinations. <b>Any territory touching this one can be attacked</b>; you can move hosts <b>anywhere across your own connected territory</b> in one action, and attack any enemy touching the region you set out from.`;
     } else if (!id) {
       tip = isReaction
-        ? `Another warlord holds the Turn. You get <b>one</b> action in response — reinforce, raise a host, or build. Click one of your territories.`
-        : `Your Turn: act as often as your Tribute allows. Click one of your territories to begin.`;
+        ? `Another warlord holds the Turn. You get <b>one</b> action in response — reinforce, raise a host, or build. Tap one of your territories.`
+        : `Your Turn — <b>${Rules.actionsLeft(pi)} action${Rules.actionsLeft(pi) === 1 ? '' : 's'}</b> left. Tap one of your territories.`;
     } else {
       const rs = G.regions[id];
       const mine = rs.owner === pi;
@@ -7173,7 +7944,7 @@ const UI = {
       } else if (Rules.canBuild(pi, id).ok && rs.holding === 0) {
         tip = `<b>Build a Holding</b> here: it raises this region's income every Round, and at tier 2 or better it adds a defence die.`;
       } else {
-        tip = `<b>March / Attack</b> to move these hosts, or <b>Raise</b> more. Hover any number in the panel to see what it means.`;
+        tip = `<b>March / Attack</b> to move these hosts, or <b>Raise</b> more. The <b>i</b> button explains this ground.`;
       }
     }
 
@@ -7317,7 +8088,7 @@ const UI = {
       <p style="color:var(--ink-mid)">${
         isReaction
           ? `React to ${esc(Rules.turnPlayer().name)}'s Turn. You have one action.`
-          : `The Turn is yours. Act as often as your Tribute allows.`
+          : `The Turn is yours — ${Rules.actionsFor(pi)} actions to spend.`
       }</p>
       <button class="primary big" id="pass-go">Take command</button>`;
     $('#pass-layer').classList.remove('hidden');
@@ -7691,7 +8462,7 @@ const UI = {
     const p = G.players[pi];
     let amount = Math.min(p.tribute, Math.max(MONUMENT_MIN, Math.floor(p.tribute / 2)));
     const draw = () => {
-      const xp = Rules.monumentXP(amount);
+      const xp = Rules.monumentXP(amount, pi);
       const nextAt = p.level < MAX_LEVEL ? XP_THRESHOLDS[p.level] : null;
       const after = p.xp + xp;
       const levels = (() => { let l = p.level; while (l < MAX_LEVEL && after >= XP_THRESHOLDS[l]) l++; return l - p.level; })();
@@ -7739,8 +8510,14 @@ const UI = {
     const r = c.lastRoll;
     const atkName = G.players[c.attacker].name;
     const defName = c.defender === null ? 'the unclaimed' : G.players[c.defender].name;
-    const forceLeft = Object.values(c.force).reduce((a, b) => a + b, 0);
-    const defLeft = Rules.hostCount(G.regions[c.target]);
+    /* Once the ground is taken the survivors have already moved INTO it:
+       c.force is empty and the target's hosts are the attacker's. Reading the
+       two pools as usual showed a won battle as "0 vs 4" with the victor's
+       own troops drawn in the loser's colour. */
+    const atkHosts = c.captured ? G.regions[c.target].hosts : c.force;
+    const defHosts = c.captured ? {} : G.regions[c.target].hosts;
+    const forceLeft = stackSize(atkHosts);
+    const defLeft = stackSize(defHosts);
 
     const atkColour = G.players[c.attacker].colour.hex;
     const defColour = c.defender === null ? '#8b8b96' : G.players[c.defender].colour.hex;
@@ -7762,7 +8539,7 @@ const UI = {
         <div class="vs-side" style="--c:${atkColour}">
           <span class="vs-role">Attacking</span>
           <span class="vs-name">${esc(atkName)}</span>
-          <span class="vs-units">${chips(c.force, atkColour)}</span>
+          <span class="vs-units">${chips(atkHosts, atkColour)}</span>
         </div>
         <div class="vs-mid">
           <span class="vs-n" style="color:${atkColour}">${forceLeft}</span>
@@ -7772,7 +8549,7 @@ const UI = {
         <div class="vs-side def" style="--c:${defColour}">
           <span class="vs-role">Holding</span>
           <span class="vs-name">${esc(defName)}</span>
-          <span class="vs-units">${chips(G.regions[c.target].hosts, defColour)}</span>
+          <span class="vs-units">${chips(defHosts, defColour)}</span>
         </div>
       </div>`;
 
@@ -8045,24 +8822,80 @@ const UI = {
       <div class="modal-actions"><button class="primary" data-close>Understood</button></div>`);
   },
 
+  /* The result screen. It used to be a five-column table of bare numbers
+     under "<name> prevails" — the one moment a match is supposed to pay off,
+     drawn as a spreadsheet. Now: the verdict from the player's side of the
+     table, every warlord as a bar you can compare at a glance with what their
+     score is made of underneath, and what the match earned toward the career
+     ladder. Built once per game over; checkOverlays calls this on every
+     render and must not rebuild it under a finger (rule 1f). */
   openGameOver() {
-    const rows = [...G.finalScores].sort((a, b) => b.total - a.total).map(s => {
+    if (UI.modalOpen() && $('#modal').classList.contains('result')) return;
+    const res = (window.Meta && Meta.recordResult()) || {};
+    const order = [...G.finalScores].sort((a, b) => b.total - a.total);
+    const top = Math.max(1, order[0].total);
+    const solo = res.solo;
+    const won = solo !== null && solo !== undefined && G.winner === solo;
+    const ord = n => n + (['th', 'st', 'nd', 'rd'][n > 3 ? 0 : n] || 'th');
+
+    const rows = order.map((s, i) => {
       const p = G.players[s.player];
-      return `<tr class="${s.player === G.winner ? 'win' : ''}">
-        <td><span class="dot" style="display:inline-block;width:.6rem;height:.6rem;border-radius:50%;background:${p.colour.hex};margin-right:.5rem"></span>${esc(p.name)}${p.surrendered ? ' <span style="color:var(--ink-dim)">(surrendered)</span>' : ''}</td>
-        <td class="n">${s.domains}</td><td class="n">${s.holdings}</td>
-        <td class="n">${s.level}</td><td class="n">${s.thrones}</td>
-        <td class="n"><b>${s.total}</b></td></tr>`;
+      const parts = [];
+      if (s.domains)  parts.push(s.domains + ' Domain' + (s.domains === 1 ? '' : 's'));
+      if (s.holdings) parts.push(s.holdings + ' Holding' + (s.holdings === 1 ? '' : 's'));
+      if (s.level)    parts.push('Renown ' + s.level);
+      if (s.thrones)  parts.push(s.thrones + ' Throne' + (s.thrones === 1 ? '' : 's'));
+      return `<div class="rs-row${s.player === G.winner ? ' win' : ''}${s.player === solo ? ' you' : ''}">
+        <span class="rs-place">${i + 1}</span>
+        <span class="rs-who"><i style="background:${p.colour.hex}"></i>${esc(p.name)}${
+          s.player === solo ? ' <em>you</em>' : AI.isAI(s.player) ? ' <em>' + esc(AI.personality(s.player).name) + '</em>' : ''}</span>
+        <b class="rs-total">${s.total}</b>
+        <span class="rs-bar"><i style="width:${Math.round(100 * s.total / top)}%;background:${p.colour.hex}"></i></span>
+        <span class="rs-parts">${p.surrendered ? 'Surrendered' : esc(parts.join(' · ') || 'Nothing held')}</span>
+      </div>`;
     }).join('');
+
+    let head, sub;
+    if (solo === null || solo === undefined) {
+      head = esc(G.players[G.winner].name) + ' prevails';
+      sub = 'The war is decided.';
+    } else if (won) {
+      head = 'Victory';
+      sub = G.players[solo].level >= MAX_LEVEL ? 'You have achieved Apotheosis.'
+        : 'They will be telling this one for a long time.';
+    } else {
+      head = ord(res.place || 2) + ' place';
+      sub = esc(G.players[G.winner].name) + ' takes the war by '
+        + (order[0].total - (G.finalScores.find(x => x.player === solo) || { total: 0 }).total) + '.';
+    }
+
+    const career = res.after ? `
+      <div class="rs-career">
+        <div class="career-rank"><b>${res.after.level}</b><span>Legend</span></div>
+        <div class="career-body">
+          <div class="career-title">${esc(res.after.title)} <em>+${res.gained} XP</em>${
+            res.after.level > res.before.level ? ' <em class="up">Rank up</em>' : ''}</div>
+          <div class="career-bar"><i style="width:${res.after.pct}%"></i></div>
+          <div class="career-stats">${res.newBest ? 'New best score · ' : ''}${
+            res.daily ? 'Daily best ' + res.dailyBest + (res.streak > 1 ? ' · ' + res.streak + '-day streak' : '')
+                      : (Meta.DIFFICULTY[Meta.difficulty].name + ' rivals')}</div>
+        </div>
+      </div>` : '';
+
     UI.modal(`
-      <div class="eyebrow">The war is decided</div>
-      <h2>${esc(G.players[G.winner].name)} prevails</h2>
-      <table class="score-table">
-        <thead><tr><th>Warlord</th><th>Domains</th><th>Holdings</th><th>Renown</th><th>Thrones</th><th>Total</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-      <div class="modal-actions"><button class="primary" id="again">Play again</button></div>`);
-    $('#again').addEventListener('click', () => location.reload());
+      <div class="rs-head ${won ? 'won' : ''}">
+        <div class="eyebrow">${res.daily ? 'Daily challenge' : 'The war is decided'}</div>
+        <h2>${head}</h2>
+        <p>${sub}</p>
+      </div>
+      <div class="rs-rows">${rows}</div>
+      ${career}
+      <div class="modal-actions">
+        <button class="ghost" id="rs-title">Title</button>
+        <button class="primary" id="again">${res.daily ? 'Try again' : 'Rematch'}</button>
+      </div>`, 'result');
+    $('#again').addEventListener('click', () => (window.Meta && Meta.rematch ? Meta.rematch() : location.reload()));
+    $('#rs-title').addEventListener('click', () => location.reload());
   },
 
   /* ================= overlay dispatch ================= */
@@ -8403,9 +9236,810 @@ const UI = {
 })();
 
 ;
+/* ===== js/juice.js ===== */
+/* ============================================================
+   APOTHEOSIS — juice: sound, haptics and motion
+
+   The gap this closes: dice that did not roll, ground that changed hands in
+   silence, and a level-up that arrived as a form. Stills of this game looked
+   finished; playing it did not feel finished.
+
+   Three rules keep this from costing what motion usually costs here:
+
+     1. NOTHING IS LOADED. Every sound is synthesised with WebAudio at the
+        moment it plays, so the game still ships as one HTML file with no
+        assets. The AudioContext is created on the first touch, because no
+        browser will start one without a gesture.
+
+     2. THE ENGINE IS NOT TOUCHED. Events are read off the chronicle
+        ({kind, text, player, seq}) with a private watermark, exactly the way
+        feedback.js reads announcements, and the dialogs are decorated AFTER
+        they are built by wrapping the functions that build them. state.js and
+        combat.js still know nothing about any of this.
+
+     3. THE RESTING STATE IS THE VISIBLE ONE. Every keyframe animates TO what
+        the element already looks like, so prefers-reduced-motion (which kills
+        all animation in style.css) and a backgrounded tab (which never runs a
+        frame) both leave a complete, correct screen.
+
+   On the board itself only one thing moves: a flash over a territory that
+   just changed hands. It is a single overlay path animating opacity in a few
+   steps, never a filter and never a transform on the map — the camera owns
+   those (CLAUDE.md rules 10-13).
+   ============================================================ */
+
+(function () {
+
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v === '1'; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v ? '1' : '0'); } catch (e) {} }
+  };
+
+  const Juice = {
+
+    sound:   store.get('apotheosis-sound', true),
+    haptics: store.get('apotheosis-haptics', true),
+
+    setSound(on)   { Juice.sound = !!on;   store.set('apotheosis-sound', on); if (on) Juice.play('tap'); },
+    setHaptics(on) { Juice.haptics = !!on; store.set('apotheosis-haptics', on); if (on) Juice.buzz(12); },
+
+    /* ---------------- audio ---------------- */
+
+    ctx: null, master: null,
+
+    wake() {
+      if (Juice.ctx) { if (Juice.ctx.state === 'suspended') Juice.ctx.resume(); return; }
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      try {
+        Juice.ctx = new AC();
+        Juice.master = Juice.ctx.createGain();
+        Juice.master.gain.value = 0.5;
+        Juice.master.connect(Juice.ctx.destination);
+      } catch (e) { Juice.ctx = null; }
+    },
+
+    tone(freq, dur, opt) {
+      const c = Juice.ctx; if (!c) return;
+      opt = opt || {};
+      const t0 = c.currentTime + (opt.at || 0);
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = opt.type || 'sine';
+      o.frequency.setValueAtTime(freq, t0);
+      if (opt.to) o.frequency.exponentialRampToValueAtTime(opt.to, t0 + dur);
+      const peak = opt.gain || 0.12;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(peak, t0 + Math.min(0.012, dur / 4));
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(Juice.master);
+      o.start(t0); o.stop(t0 + dur + 0.02);
+    },
+
+    noise(dur, opt) {
+      const c = Juice.ctx; if (!c) return;
+      opt = opt || {};
+      const t0 = c.currentTime + (opt.at || 0);
+      const n = Math.max(1, Math.floor(c.sampleRate * dur));
+      const buf = c.createBuffer(1, n, c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      const src = c.createBufferSource(); src.buffer = buf;
+      const f = c.createBiquadFilter();
+      f.type = opt.filter || 'bandpass'; f.frequency.value = opt.freq || 2400; f.Q.value = opt.q || 1.2;
+      const g = c.createGain(); g.gain.value = opt.gain || 0.15;
+      src.connect(f); f.connect(g); g.connect(Juice.master);
+      src.start(t0);
+    },
+
+    SOUNDS: {
+      tap()     { Juice.tone(1150, 0.035, { gain: 0.035 }); },
+      select()  { Juice.tone(620, 0.06, { type: 'triangle', gain: 0.06, to: 760 }); },
+      dice()    { for (let i = 0; i < 6; i++) Juice.noise(0.035, { at: i * 0.062 + Math.random() * 0.02,
+                    freq: 1800 + Math.random() * 2200, gain: 0.16 }); },
+      win()     { Juice.tone(150, 0.16, { to: 62, gain: 0.26 }); Juice.noise(0.07, { freq: 900, gain: 0.1 }); },
+      lose()    { Juice.tone(210, 0.2, { type: 'sawtooth', to: 110, gain: 0.07 }); },
+      capture() { [392, 523.25, 659.25].forEach((f, i) =>
+                    Juice.tone(f, 0.26, { type: 'triangle', at: i * 0.085, gain: 0.13 })); },
+      lost()    { [330, 262, 196].forEach((f, i) =>
+                    Juice.tone(f, 0.3, { type: 'triangle', at: i * 0.11, gain: 0.11 })); },
+      level()   { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+                    Juice.tone(f, 0.5, { at: i * 0.09, gain: 0.11 });
+                    Juice.tone(f * 2, 0.4, { at: i * 0.09, gain: 0.03 }); }); },
+      coin()    { Juice.tone(1568, 0.07, { gain: 0.06 }); Juice.tone(2093, 0.12, { at: 0.06, gain: 0.06 }); },
+      build()   { Juice.noise(0.09, { filter: 'lowpass', freq: 500, gain: 0.3 });
+                  Juice.tone(196, 0.22, { type: 'triangle', at: 0.03, gain: 0.12 }); },
+      march()   { Juice.noise(0.05, { filter: 'lowpass', freq: 700, gain: 0.2 });
+                  Juice.noise(0.05, { filter: 'lowpass', freq: 600, gain: 0.16, at: 0.13 }); },
+      refuse()  { Juice.tone(150, 0.07, { type: 'square', gain: 0.045 });
+                  Juice.tone(130, 0.09, { type: 'square', gain: 0.045, at: 0.1 }); },
+      turn()    { Juice.tone(880, 0.5, { gain: 0.07 }); Juice.tone(1320, 0.6, { gain: 0.03, at: 0.02 }); },
+      fall()    { Juice.tone(110, 0.7, { type: 'sawtooth', to: 55, gain: 0.09 }); },
+      victory() { [392, 523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
+                    Juice.tone(f, i === 4 ? 1.1 : 0.3, { type: 'triangle', at: i * 0.13, gain: 0.14 })); },
+      defeat()  { [392, 349.2, 293.7, 196].forEach((f, i) =>
+                    Juice.tone(f, i === 3 ? 0.9 : 0.34, { type: 'triangle', at: i * 0.17, gain: 0.11 })); }
+    },
+
+    play(name) {
+      if (!Juice.sound) return;
+      Juice.wake();
+      if (!Juice.ctx || Juice.ctx.state !== 'running') return;
+      const fn = Juice.SOUNDS[name];
+      if (fn) { try { fn(); } catch (e) {} }
+    },
+
+    buzz(pattern) {
+      if (!Juice.haptics || !navigator.vibrate) return;
+      try { navigator.vibrate(pattern); } catch (e) {}
+    },
+
+    /* ---------------- board flash ---------------- */
+
+    flashes: [],          // { id, colour, kind, start }
+    FLASH_MS: 900,
+
+    regionByName(text) {
+      if (!Juice._names) {
+        Juice._names = Object.keys(REGIONS)
+          .map(id => ({ id, name: REGIONS[id].name }))
+          .sort((a, b) => b.name.length - a.name.length);
+      }
+      const hit = Juice._names.find(n => text.indexOf(n.name) >= 0);
+      return hit ? hit.id : null;
+    },
+
+    flash(id, colour, kind) {
+      if (!id) return;
+      Juice.flashes.push({ id, colour, kind: kind || 'take', start: 0 });
+    },
+
+    /* Re-applied after every board repaint: renderMap replaces the territory
+       groups, so an overlay that lived inside them would be thrown away
+       mid-flash. A negative animation-delay resumes it where it was. */
+    paintFlashes() {
+      const svg = document.getElementById('map');
+      if (!svg || !Juice.flashes.length) return;
+      if (UI.modalOpen && UI.modalOpen()) return;       // wait until it can be seen
+      const now = Date.now();
+      Juice.flashes = Juice.flashes.filter(f => !f.start || now - f.start < Juice.FLASH_MS);
+      let g = svg.querySelector('#fx-layer');
+      if (!g) {
+        g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('id', 'fx-layer');
+        g.setAttribute('pointer-events', 'none');
+        const content = svg.querySelector('#territory-content');
+        if (!content) return;
+        svg.insertBefore(g, content);
+      }
+      g.innerHTML = Juice.flashes.map(f => {
+        if (!f.start) f.start = now;
+        if (!REGIONS[f.id]) return '';
+        return '<path class="fx-flash fx-flash-' + f.kind + '" d="' + REGIONS[f.id].d + '"'
+          + ' style="--fc:' + f.colour + ';animation-delay:-' + (now - f.start) + 'ms"/>';
+      }).join('');
+    },
+
+    /* ---------------- chronicle watcher ---------------- */
+
+    seen: 0,
+    lastActor: -1,
+
+    reset() { Juice.seen = (typeof G !== 'undefined' && G) ? G.logSeq : 0; Juice.flashes = []; Juice._names = null; Juice.lastActor = -1; },
+
+    pump() {
+      if (typeof G === 'undefined' || !G) return;
+      if (Juice.seen > G.logSeq) Juice.seen = 0;
+      const fresh = [];
+      for (const e of G.log) {
+        if (e.seq === undefined || e.seq <= Juice.seen) break;
+        fresh.push(e);
+      }
+      Juice.seen = G.logSeq;
+      if (!fresh.length) return;
+      fresh.reverse();
+
+      const human = pi => pi !== null && pi !== undefined && !AI.isAI(pi);
+      let played = {};
+      const once = (name) => { if (!played[name]) { played[name] = 1; Juice.play(name); } };
+
+      for (const e of fresh) {
+        const mine = human(e.player);
+        const col = (e.player !== null && e.player !== undefined && G.players[e.player])
+          ? G.players[e.player].colour.hex : '#e7e4dc';
+        switch (e.kind) {
+          case 'capture':
+            Juice.flash(Juice.regionByName(e.text), col, 'take');
+            /* the combat dialog already played its own result for a human */
+            if (!mine) once('march');
+            break;
+          case 'spoils':
+            Juice.flash(Juice.regionByName(e.text), col, 'take');
+            break;
+          case 'build':
+            Juice.flash(Juice.regionByName(e.text), '#c98f47', 'build');
+            if (mine) { once('build'); Juice.buzz(18); }
+            break;
+          case 'raise':    if (mine) once('coin'); break;
+          case 'march':    if (mine) once('march'); break;
+          case 'monument': if (mine) once('level'); break;
+          case 'level':
+          case 'apotheosis': if (mine) { once('level'); Juice.buzz([20, 40, 20, 40, 60]); } break;
+          case 'domain':   once(mine ? 'level' : 'lost'); break;
+          case 'championfall': once('fall'); Juice.buzz([60, 40, 120]); break;
+          case 'fallen':   once('lost'); Juice.buzz([40, 30, 40]); break;
+          case 'victory': {
+            const won = human(G.winner);
+            once(won ? 'victory' : 'defeat');
+            Juice.buzz(won ? [30, 40, 30, 40, 30, 40, 160] : [200]);
+            break;
+          }
+        }
+      }
+
+      /* your Turn has come round */
+      const a = UI.actingIndex();
+      if (a !== Juice.lastActor) {
+        if (Juice.lastActor !== -1 && human(a) && G.phase === 'turn') { Juice.play('turn'); Juice.buzz(25); }
+        Juice.lastActor = a;
+      }
+    },
+
+    /* ---------------- dialog decoration ---------------- */
+
+    _rollSeen: null,
+    _boonSeen: null,
+
+    afterCombat() {
+      const c = G.pendingCombat;
+      const m = document.getElementById('modal');
+      if (!c || !m) return;
+      const x = m.querySelector('.xch');
+      if (c.lastRoll && c.lastRoll !== Juice._rollSeen && x) {
+        Juice._rollSeen = c.lastRoll;
+        x.classList.add('rolling');
+        Juice.play('dice'); Juice.buzz([10, 30, 10, 30, 10]);
+        const r = c.lastRoll;
+        const human = !AI.isAI(c.attacker);
+        /* The verdict lands when the dice do. For the person watching, a
+           "win" is whatever went their way — the defender's dice if they are
+           the one being attacked. */
+        const good = human ? r.defLoss > r.atkLoss : r.atkLoss >= r.defLoss;
+        setTimeout(() => {
+          if (c.finished) {
+            const took = c.captured;
+            Juice.play(took === human ? 'capture' : 'lost');
+            Juice.buzz(took === human ? [30, 50, 80] : [120]);
+          } else {
+            Juice.play(good ? 'win' : 'lose');
+            Juice.buzz(good ? 22 : [14, 40, 14]);
+          }
+        }, 430);
+      }
+      if (c.finished) m.classList.add(c.captured ? 'is-taken' : 'is-held');
+    },
+
+    afterBoon() {
+      const pb = G.pendingBoon, m = document.getElementById('modal');
+      if (!pb || !m) return;
+      const key = pb.player + ':' + G.players[pb.player].level;
+      if (key === Juice._boonSeen) return;
+      Juice._boonSeen = key;
+      m.classList.add('levelup');
+    },
+
+    /* ---------------- wiring ---------------- */
+
+    wrap(obj, name, after) {
+      const real = obj[name];
+      if (typeof real !== 'function') return;
+      obj[name] = function () {
+        const out = real.apply(this, arguments);
+        try { after.apply(this, arguments); } catch (e) { console.error('juice:', name, e); }
+        return out;
+      };
+    },
+
+    init() {
+      if (Juice._init) return;
+      Juice._init = true;
+
+      Juice.wrap(UI, 'openCombat', Juice.afterCombat);
+      Juice.wrap(UI, 'openBoon', Juice.afterBoon);
+      Juice.wrap(UI, 'render', () => { Juice.pump(); Juice.paintFlashes(); });
+      Juice.wrap(UI, 'renderMap', Juice.paintFlashes);
+      Juice.wrap(UI.fx, 'refuse', () => { Juice.play('refuse'); Juice.buzz([12, 50, 12]); });
+      Juice.wrap(UI.fx, 'reset', Juice.reset);
+      Juice.wrap(UI, 'clickRegion', () => { if (G && G.selected) Juice.play('select'); });
+
+      /* One listener for every button in the game: a tick you can feel. It is
+         passive and on pointerdown, so it can never delay or swallow a tap. */
+      document.addEventListener('pointerdown', e => {
+        Juice.wake();
+        const b = e.target.closest && e.target.closest('button, .boon-card, .rz-kind, [role="button"]');
+        if (!b) return;
+        Juice.play('tap'); Juice.buzz(8);
+      }, { passive: true, capture: true });
+    }
+  };
+
+  window.Juice = Juice;
+  Juice.init();
+})();
+
+;
+/* ===== js/meta.js ===== */
+/* ============================================================
+   APOTHEOSIS — everything around the match
+
+   Four things a match alone cannot give a player, and that a store game is
+   judged on as much as the play itself:
+
+     SAVE / RESUME   a phone call, a locked screen or a closed tab used to
+                     end the war. The whole state is plain JSON (the same
+                     property the arena and the AI's lookahead rely on), so
+                     it is written after every change and offered back on
+                     the title screen.
+
+     DIFFICULTY      three named levels, each one a set of AI feature
+                     switches that was MEASURED head-to-head in the arena —
+                     not a handicap and not a cheat. Hard does not get extra
+                     Tribute; it thinks further.
+
+     CAREER          Legend XP earned by finishing matches, a rank ladder,
+                     and a record of what you have done. Cosmetic only: it
+                     never changes the rules of a match.
+
+     DAILY           one seeded match a day, the same seats and the same
+                     dice for everyone, with your best score kept.
+
+   The engine is not touched. This file reads G and wraps UI functions.
+   ============================================================ */
+
+const Meta = {
+
+  /* ---------------- storage ---------------- */
+
+  read(key, fallback) {
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch (e) { return fallback; }
+  },
+  write(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch (e) { return false; }
+  },
+  drop(key) { try { localStorage.removeItem(key); } catch (e) {} },
+
+  K: { save: 'apotheosis-save-v1', career: 'apotheosis-career-v1', prefs: 'apotheosis-prefs-v1' },
+
+  /* ---------------- difficulty ---------------- */
+
+  /* Each level is a set of switches in AI.FEATURES. See CLAUDE.md for the
+     arena numbers behind them: batchRaise won 63.8% head-to-head against the
+     old one-host-per-action AI, simAttack (fighting the battle in simulation
+     before committing to it) won 71.3% against batchRaise alone, and blessFirst
+     (taking a Blessing over a Champion Perk) won 60%. */
+  DIFFICULTY: {
+    easy:   { name: 'Easy',   blurb: 'Rivals spend their turns carelessly and attack on instinct.',
+              features: { batchRaise: false, simAttack: 0, blessFirst: false } },
+    normal: { name: 'Normal', blurb: 'Rivals use their whole turn, but still fight on instinct.',
+              features: { batchRaise: true, simAttack: 0, blessFirst: true } },
+    hard:   { name: 'Hard',   blurb: 'Rivals weigh every assault before they commit to it.',
+              features: { batchRaise: true, simAttack: 2, blessFirst: true } }
+  },
+  difficulty: 'normal',
+
+  applyDifficulty(id) {
+    Meta.difficulty = Meta.DIFFICULTY[id] ? id : 'normal';
+    Object.assign(AI.FEATURES, Meta.DIFFICULTY[Meta.difficulty].features);
+  },
+
+  /* ---------------- seeded dice ----------------
+     The arena's stream lives in a closure and cannot be saved. This one keeps
+     its state in a plain integer, so a Daily match can be closed mid-war and
+     resumed on exactly the dice it would have rolled. */
+
+  rngState: 0,
+  seededRNG() {
+    Meta.rngState = (Meta.rngState + 0x6D2B79F5) | 0;
+    let t = Meta.rngState;
+    t = Math.imul(t ^ (t >>> 15), 1 | t);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  },
+  seedDice(seed) { Meta.rngState = seed | 0; setRNG(Meta.seededRNG); },
+
+  /* ---------------- daily challenge ---------------- */
+
+  dayKey(d) {
+    d = d || new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+      + '-' + String(d.getDate()).padStart(2, '0');
+  },
+  dayLabel(d) {
+    d = d || new Date();
+    return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()]
+      + ' ' + d.getDate();
+  },
+  daySeed(key) {
+    let h = 2166136261;
+    for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+    return h | 0;
+  },
+
+  /* Three rivals for a human who chose `taken`: one of each temperament, each
+     serving a different god, so all four patrons are on the board in every
+     quick match. Each temperament takes the first god it favours that is
+     still free. */
+  RIVAL_GODS: {
+    magnate:     ['ilthara', 'morwen', 'sael', 'vashtar'],
+    warmonger:   ['vashtar', 'sael', 'morwen', 'ilthara'],
+    opportunist: ['sael', 'vashtar', 'morwen', 'ilthara']
+  },
+  rivalsFor(taken, order) {
+    const used = [taken];
+    return (order || ['magnate', 'warmonger', 'opportunist']).map(k => {
+      const prefs = Meta.RIVAL_GODS[k] || Object.keys(PATRONS);
+      const god = prefs.find(g => PATRONS[g] && !used.includes(g)) || AI.PERSONALITIES[k].patron;
+      used.push(god);
+      return { type: 'ai', ai: k, patron: god };
+    });
+  },
+
+  /* The same seats, patrons and dice for everyone who plays today. */
+  dailyConfig() {
+    const key = Meta.dayKey();
+    const seed = Meta.daySeed(key);
+    const r = mulberry32(seed);
+    const patrons = Object.keys(PATRONS);
+    const kinds = Object.keys(AI.PERSONALITIES);
+    const off = Math.floor(r() * kinds.length);
+    const mine = patrons[Math.floor(r() * patrons.length)];
+    const order = [0, 1, 2].map(i => kinds[(off + i) % kinds.length]);
+    const seats = [{ type: 'human', patron: mine, ai: kinds[0] }].concat(Meta.rivalsFor(mine, order));
+    return { count: 4, seats, map: 'default', assaultLimit: 0, skipReactions: false,
+             privacy: false, difficulty: 'hard', daily: key, seed };
+  },
+
+  /* ---------------- career ---------------- */
+
+  RANKS: ['Unsung', 'Named', 'Storied', 'Renowned', 'Feared', 'Exalted', 'Mythic', 'Undying', 'Ascendant', 'Apotheosis'],
+
+  career() {
+    const c = Meta.read(Meta.K.career, null) || {};
+    return Object.assign({ xp: 0, matches: 0, wins: 0, best: 0, thrones: 0, daily: {}, streak: 0, lastDaily: null,
+                           winsBy: {} }, c);
+  },
+
+  /* 120 XP for the first rank, growing by 60 each time. */
+  rank(xp) {
+    let level = 1, need = 120, into = xp;
+    while (into >= need && level < 60) { into -= need; level++; need += 60; }
+    const title = Meta.RANKS[Math.min(Meta.RANKS.length - 1, Math.floor((level - 1) / 2))];
+    return { level, into, need, title, pct: Math.round(100 * into / need) };
+  },
+
+  /* Called once when a match ends. Returns what the result screen shows. */
+  recordResult() {
+    if (!G || G.phase !== 'gameover' || !G.finalScores) return null;
+    if (Meta.lastResult && Meta.lastResult.stamp === G.logSeq) return Meta.lastResult;
+
+    const humans = G.players.filter((p, i) => !AI.isAI(i));
+    const solo = humans.length === 1 ? humans[0].index : null;
+    const order = [...G.finalScores].sort((a, b) => b.total - a.total);
+    const out = { stamp: G.logSeq, solo, place: null, gained: 0, before: null, after: null,
+                  daily: Meta.session.daily, dailyBest: null, newBest: false };
+
+    if (solo !== null) {
+      const mine = G.finalScores.find(s => s.player === solo);
+      const won = G.winner === solo;
+      out.place = order.findIndex(s => s.player === solo) + 1;
+      out.score = mine.total;
+
+      const mult = { easy: 0.7, normal: 1, hard: 1.4 }[Meta.difficulty] || 1;
+      const base = 30 + mine.total * 6 + (won ? 80 : 0) + mine.thrones * 15
+                 + (G.players[solo].level >= MAX_LEVEL ? 60 : 0);
+      out.gained = Math.round(base * mult);
+
+      const c = Meta.career();
+      out.before = Meta.rank(c.xp);
+      c.xp += out.gained;
+      c.matches += 1;
+      if (won) { c.wins += 1; c.winsBy[Meta.difficulty] = (c.winsBy[Meta.difficulty] || 0) + 1; }
+      c.thrones += mine.thrones;
+      if (mine.total > c.best) { c.best = mine.total; out.newBest = true; }
+      if (out.daily) {
+        const prev = c.daily[out.daily];
+        if (prev === undefined || mine.total > prev) c.daily[out.daily] = mine.total;
+        out.dailyBest = c.daily[out.daily];
+        if (c.lastDaily !== out.daily) {
+          const y = new Date(); y.setDate(y.getDate() - 1);
+          c.streak = c.lastDaily === Meta.dayKey(y) ? c.streak + 1 : 1;
+          c.lastDaily = out.daily;
+        }
+        out.streak = c.streak;
+        /* keep the record small: the last 60 days is plenty */
+        const days = Object.keys(c.daily).sort();
+        while (days.length > 60) delete c.daily[days.shift()];
+      }
+      out.after = Meta.rank(c.xp);
+      Meta.write(Meta.K.career, c);
+    }
+    Meta.clearSave();
+    Meta.lastResult = out;
+    return out;
+  },
+  lastResult: null,
+
+  /* ---------------- save / resume ---------------- */
+
+  /* What the running match was started with — kept so a save can restore it
+     and a rematch can repeat it. Set by main.js. */
+  session: { config: null, daily: null },
+
+  _savedSeq: -1,
+
+  autosave() {
+    if (typeof G === 'undefined' || !G || !Meta.session.config) return;
+    if (G.phase === 'gameover') return;
+    /* A battle in flight is not a place to stop: its force is lifted out of
+       the board and the dialog owns the screen. The last settled state stays
+       on disk until the fight resolves. */
+    if (G.pendingCombat) return;
+    if (G.logSeq === Meta._savedSeq) return;
+    Meta._savedSeq = G.logSeq;
+    Meta.write(Meta.K.save, {
+      v: 1, at: Date.now(), map: ACTIVE_MAP, seats: AI.seats, settings: SETTINGS,
+      privacy: UI.privacy, difficulty: Meta.difficulty, config: Meta.session.config,
+      daily: Meta.session.daily, rng: Meta.session.daily ? Meta.rngState : null,
+      levy: LEVY_MODE, G
+    });
+  },
+
+  peekSave() {
+    const s = Meta.read(Meta.K.save, null);
+    if (!s || s.v !== 1 || !s.G || !s.G.players || !MAPS[s.map]) return null;
+    if (s.G.phase === 'gameover') return null;
+    /* a save from another map version would name regions that no longer exist */
+    const regs = MAPS[s.map].regions;
+    for (const id in s.G.regions) if (!regs[id]) return null;
+    for (const id in regs) if (!s.G.regions[id]) return null;
+    return s;
+  },
+  clearSave() { Meta.drop(Meta.K.save); Meta._savedSeq = -1; },
+
+  describeSave(s) {
+    const human = s.G.players.find((p, i) => !s.seats[i]);
+    return 'Round ' + Math.min(s.G.round, ROUND_LIMIT) + ' of ' + ROUND_LIMIT
+      + (human ? ' · ' + human.name : '') + (s.daily ? ' · Daily' : '');
+  },
+
+  /* Put a saved match back on the board. Returns false if it cannot be used. */
+  restore(s) {
+    try {
+      activateMap(s.map);
+      AI.seats = s.seats || {};
+      Object.assign(SETTINGS, s.settings || {});
+      UI.privacy = !!s.privacy;
+      Meta.applyDifficulty(s.difficulty);
+      Meta.session = { config: s.config, daily: s.daily || null };
+      if (s.daily && s.rng !== null && s.rng !== undefined) { Meta.rngState = s.rng; setRNG(Meta.seededRNG); }
+      else setRNG(null);
+      G = s.G;
+      G.pendingCombat = null;
+      G.selected = null;
+      Meta._savedSeq = G.logSeq;
+      return true;
+    } catch (e) { console.error('restore failed', e); return false; }
+  },
+
+  /* ---------------- prefs ---------------- */
+
+  prefs() { return Object.assign({ patron: 'vashtar', difficulty: 'normal', coached: false }, Meta.read(Meta.K.prefs, {})); },
+  setPref(k, v) { const p = Meta.prefs(); p[k] = v; Meta.write(Meta.K.prefs, p); },
+
+  init() {
+    if (Meta._init) return;
+    Meta._init = true;
+    const real = UI.render;
+    UI.render = function () {
+      const out = real.apply(this, arguments);
+      try { Meta.autosave(); } catch (e) {}
+      return out;
+    };
+    /* A phone gives no warning before it suspends a tab. */
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { Meta._savedSeq = -1; try { Meta.autosave(); } catch (e) {} }
+    });
+  }
+};
+
+window.Meta = Meta;
+Meta.init();
+
+window.Meta = Meta;
+
+;
+/* ===== js/coach.js ===== */
+/* ============================================================
+   APOTHEOSIS — the guided first turn
+
+   The old first run was six cards of prose over a dimmed board: it explained
+   the game and then left the player alone with it. This walks them through
+   an actual turn instead — raise, march, build, end — and each step waits
+   for the player to DO the thing, on the real board, with the real controls.
+
+   It is a spectator of the game, not a mode of it: every step is a predicate
+   over G and the DOM, polled a few times a second. It never blocks input,
+   never drives the UI, and can be dismissed at any point. The engine and the
+   rules are identical with it on or off.
+   ============================================================ */
+
+const Coach = {
+
+  active: false,
+  step: 0,
+  pi: 0,
+  timer: 0,
+  base: null,
+
+  STEPS: [
+    { title: 'This is your Throne',
+      text: 'The crowned territory is yours. <b>Tap it</b> to see what you can do there.',
+      target: c => THRONES[c.pi],
+      done: c => G.selected === THRONES[c.pi] && UI.pv.isOpen() },
+
+    { title: 'Raise an army',
+      text: 'Tap <b>Raise</b>, then the green <b>✓</b>. Drag the slider to buy <b>Levy</b> and confirm — as many as you like for one action.',
+      target: c => THRONES[c.pi],
+      done: c => Rules.totalHosts(c.pi) > c.base.hosts },
+
+    { title: 'Take ground',
+      text: 'Tap your Throne, choose <b>March</b> and <b>✓</b>, then tap a <b>dashed</b> territory beside it. Unclaimed ground is yours for the taking.',
+      target: c => Coach.freeNeighbour(c.pi),
+      done: c => Rules.regionsOf(c.pi).length > c.base.regions },
+
+    { title: 'Make it pay',
+      text: 'A <b>Holding</b> earns Tribute every Round and is worth <b>2 points</b> at the end. Select ground you own and choose <b>Build</b> when you can afford it — or keep expanding.',
+      target: c => null,
+      done: c => c.holdings() > c.base.holdings || Rules.actionsLeft(c.pi) === 0 || UI.actingIndex() !== c.pi,
+      skippable: true },
+
+    { title: 'End your Turn',
+      text: 'When your actions are spent, <b>End Turn</b>. Rivals then act — and you get one <b>Reaction</b> during each of their Turns.',
+      target: c => null,
+      done: c => UI.actingIndex() !== c.pi || G.round > 1 },
+
+    { title: 'How you win',
+      text: 'Highest score after <b>Round ' + ROUND_LIMIT + '</b> wins: <b>5</b> per complete Domain, <b>2</b> per Holding, <b>1</b> per Renown level, <b>4</b> per rival Throne. The three numbers on each chip above are Renown, Tribute and score.',
+      target: c => null,
+      done: c => false,
+      last: true }
+  ],
+
+  holdings() {
+    return Rules.regionsOf(Coach.pi).reduce((a, id) => a + (G.regions[id].holding > 0 ? 1 : 0), 0);
+  },
+
+  freeNeighbour(pi) {
+    for (const src of Rules.regionsOf(pi)) {
+      const n = REGIONS[src].neighbours.find(x => G.regions[x].owner === null);
+      if (n) return n;
+    }
+    return null;
+  },
+
+  start(pi) {
+    Coach.stop();
+    Coach.active = true;
+    Coach.step = 0;
+    Coach.pi = pi;
+    Coach.base = { hosts: Rules.totalHosts(pi), regions: Rules.regionsOf(pi).length, holdings: Coach.holdings() };
+    Coach.mount();
+    Coach.draw();
+    Coach.timer = setInterval(Coach.tick, 350);
+  },
+
+  stop(seen) {
+    if (Coach.timer) clearInterval(Coach.timer);
+    Coach.timer = 0;
+    Coach.active = false;
+    const el = document.getElementById('coach');
+    if (el) el.remove();
+    Coach.ring(null);
+    if (seen) {
+      try { localStorage.setItem('apotheosis-tutorial-seen', '1'); } catch (e) {}
+      if (window.Meta) Meta.setPref('coached', true);
+    }
+  },
+
+  mount() {
+    if (document.getElementById('coach')) return;
+    const pane = document.getElementById('map-pane');
+    if (!pane) return;
+    const el = document.createElement('div');
+    el.id = 'coach';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    pane.appendChild(el);
+  },
+
+  tick() {
+    if (!Coach.active || typeof G === 'undefined' || !G) return;
+    if (G.phase === 'gameover') { Coach.stop(true); return; }
+    const s = Coach.STEPS[Coach.step];
+    let ok = false;
+    try { ok = s.done(Coach); } catch (e) { ok = false; }
+    if (ok) { Coach.next(); return; }
+    Coach.ring(Coach.targetNow());
+  },
+
+  targetNow() {
+    const s = Coach.STEPS[Coach.step];
+    let t = null;
+    try { t = s.target(Coach); } catch (e) {}
+    /* never point at something while a dialog covers the board */
+    if (UI.modalOpen && UI.modalOpen()) return null;
+    return t;
+  },
+
+  next() {
+    if (Coach.step >= Coach.STEPS.length - 1) { Coach.stop(true); return; }
+    Coach.step++;
+    if (window.Juice) Juice.play('coin');
+    Coach.draw();
+  },
+
+  /* Built once per step; the tick only ever toggles the board ring. */
+  draw() {
+    Coach.mount();
+    const el = document.getElementById('coach');
+    if (!el) return;
+    const s = Coach.STEPS[Coach.step];
+    const dots = Coach.STEPS.map((_, i) =>
+      '<span class="coach-dot' + (i === Coach.step ? ' on' : i < Coach.step ? ' done' : '') + '"></span>').join('');
+    el.innerHTML =
+      '<div class="coach-head"><span class="coach-n">' + (Coach.step + 1) + '</span>'
+      + '<b class="coach-title">' + s.title + '</b>'
+      + '<button class="coach-x" type="button" aria-label="Close the guide">Skip</button></div>'
+      + '<p class="coach-text">' + s.text + '</p>'
+      + '<div class="coach-foot"><span class="coach-dots">' + dots + '</span>'
+      + (s.last ? '<button class="coach-go" type="button">Got it</button>'
+         : s.skippable ? '<button class="coach-go" type="button">Next</button>' : '')
+      + '</div>';
+    el.querySelector('.coach-x').addEventListener('click', () => Coach.stop(true));
+    const go = el.querySelector('.coach-go');
+    if (go) go.addEventListener('click', () => (s.last ? Coach.stop(true) : Coach.next()));
+    Coach.ring(Coach.targetNow());
+  },
+
+  /* A ring on the territory the step is about. Drawn into its own group so a
+     board repaint (which replaces the territory groups) cannot remove it. */
+  _ringId: undefined,
+  ring(id) {
+    const svg = document.getElementById('map');
+    if (!svg) return;
+    let g = svg.querySelector('#coach-layer');
+    if (!id || !REGIONS[id]) { if (g) g.remove(); Coach._ringId = undefined; return; }
+    if (g && Coach._ringId === id) return;
+    if (!g) {
+      const content = svg.querySelector('#territory-content');
+      if (!content) return;
+      g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('id', 'coach-layer');
+      g.setAttribute('pointer-events', 'none');
+      svg.insertBefore(g, content);
+    }
+    g.innerHTML = '<path class="coach-ring" d="' + REGIONS[id].d + '"/>';
+    Coach._ringId = id;
+  }
+};
+
+window.Coach = Coach;
+
+;
 /* ===== js/main.js ===== */
 /* ============================================================
-   APOTHEOSIS — bootstrap and setup screen
+   APOTHEOSIS — bootstrap, title screen and setup
    ============================================================ */
 
 (function () {
@@ -8413,14 +10047,16 @@ const UI = {
   const NAMES = ['Crimson', 'Azure', 'Jade', 'Violet'];
   const PATRON_IDS = Object.keys(PATRONS);
   const PERSONALITY_IDS = Object.keys(AI.PERSONALITIES);
+  const prefs = Meta.prefs();
 
   /* Default: you against three AI, one of each temperament. */
   const seats = [
-    { type: 'human', patron: 'vashtar', ai: 'warmonger' },
+    { type: 'human', patron: PATRONS[prefs.patron] ? prefs.patron : 'vashtar', ai: 'warmonger' },
     { type: 'ai',    patron: 'ilthara', ai: 'magnate' },
     { type: 'ai',    patron: 'vashtar', ai: 'warmonger' },
     { type: 'ai',    patron: 'vashtar', ai: 'opportunist' }
   ];
+  let difficulty = Meta.DIFFICULTY[prefs.difficulty] ? prefs.difficulty : 'normal';
 
   /* Renamed one tier over, not just retimed: players reported the old
      Normal (750ms) as fast and the old Slow (1300ms) as what they'd actually
@@ -8434,6 +10070,77 @@ const UI = {
     { name: 'Fast',   ms: 750 }
   ];
   let speedIdx = 1;
+
+  /* ---------------- screens ---------------- */
+
+  const PANELS = ['title-home', 'title-quick', 'title-custom'];
+  function show(id) {
+    PANELS.forEach(p => { $('#' + p).hidden = p !== id; });
+    $('#setup').scrollTop = 0;
+  }
+  document.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => show('title-home')));
+
+  /* ---------------- title: career and menu ---------------- */
+
+  function drawHome() {
+    const c = Meta.career();
+    const r = Meta.rank(c.xp);
+    $('#career').innerHTML = c.matches
+      ? `<div class="career-rank"><b>${r.level}</b><span>Legend</span></div>
+         <div class="career-body">
+           <div class="career-title">${esc(r.title)}</div>
+           <div class="career-bar"><i style="width:${r.pct}%"></i></div>
+           <div class="career-stats">${c.wins} win${c.wins === 1 ? '' : 's'} in ${c.matches} ·
+             best ${c.best}${c.streak > 1 ? ' · ' + c.streak + '-day streak' : ''}</div>
+         </div>`
+      : '';
+    $('#career').hidden = !c.matches;
+
+    const save = Meta.peekSave();
+    $('#t-continue').hidden = !save;
+    if (save) $('#t-continue-sub').textContent = Meta.describeSave(save);
+    $('#t-quick').classList.toggle('is-primary', !save);
+    $('#t-continue').classList.toggle('is-primary', !!save);
+
+    const today = Meta.dayKey();
+    const best = c.daily[today];
+    $('#t-daily-sub').textContent = Meta.dayLabel()
+      + (best !== undefined ? ' · your best ' + best : ' · same dice for everyone');
+  }
+
+  /* ---------------- quick match ---------------- */
+
+  function drawDiff(host, onPick) {
+    host.innerHTML = Object.keys(Meta.DIFFICULTY).map(k =>
+      `<button type="button" data-diff="${k}" class="${k === difficulty ? 'on' : ''}">${Meta.DIFFICULTY[k].name}</button>`).join('');
+    host.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => {
+      difficulty = b.dataset.diff;
+      Meta.setPref('difficulty', difficulty);
+      drawDiff($('#q-diff')); drawDiff($('#c-diff'));
+      $('#q-diff-blurb').textContent = Meta.DIFFICULTY[difficulty].blurb;
+    }));
+    $('#q-diff-blurb').textContent = Meta.DIFFICULTY[difficulty].blurb;
+  }
+
+  function drawQuick() {
+    $('#q-patrons').innerHTML = PATRON_IDS.map(pid => {
+      const pt = PATRONS[pid];
+      return `<button type="button" class="q-patron ${seats[0].patron === pid ? 'on' : ''}" data-qp="${pid}">
+        <span class="q-patron-name">${esc(pt.name)}</span>
+        <span class="q-patron-ep">${esc(pt.epithet)}</span>
+        <span class="patron-domain">${esc(pt.domain)}</span>
+        <span class="q-patron-pass">${esc(pt.passive)}</span>
+        <span class="q-patron-plays">${esc(pt.plays)}</span>
+      </button>`;
+    }).join('');
+    document.querySelectorAll('[data-qp]').forEach(b => b.addEventListener('click', () => {
+      seats[0].patron = b.dataset.qp;
+      Meta.setPref('patron', seats[0].patron);
+      drawQuick();
+    }));
+  }
+
+  /* ---------------- custom game ---------------- */
 
   function drawSeats() {
     $('#patron-picks').innerHTML = seats.slice(0, count).map((s, i) => {
@@ -8509,26 +10216,18 @@ const UI = {
   });
   drawMapChoice();
 
-  $('#setup-howto').addEventListener('click', () => UI.openMenu());
-
+  let assaultLimit = 0;
   document.querySelectorAll('#assault-limit button').forEach(b => {
     b.addEventListener('click', () => {
       document.querySelectorAll('#assault-limit button').forEach(x => x.classList.remove('on'));
       b.classList.add('on');
-      SETTINGS.assaultLimit = +b.dataset.lim;
+      assaultLimit = +b.dataset.lim;
     });
   });
 
-  $('#start').addEventListener('click', () => {
-    UI.privacy = $('#privacy').checked;
-    SETTINGS.skipReactions = $('#skip-reactions').checked;
-    AI.seats = {};
-    AI.delay = SPEEDS[speedIdx].ms;
-    seats.slice(0, count).forEach((s, i) => { if (s.type === 'ai') AI.seats[i] = s.ai; });
+  /* ---------------- starting, resuming, rematching ---------------- */
 
-    activateMap($('#map-choice').value);
-    Rules.newGame(seats.slice(0, count).map((s, i) => ({ name: NAMES[i], patron: s.patron })));
-
+  function enterGame() {
     $('#setup').classList.add('hidden');
     $('#game').classList.remove('hidden');
     UI.fx.reset();
@@ -8543,11 +10242,90 @@ const UI = {
         return SPEEDS[speedIdx].name;
       }
     };
+    AI.delay = SPEEDS[speedIdx].ms;
     UI.render();
-    if ($('#show-tutorial').checked) UI.openTutorial(0);
+  }
+
+  /* One description of a match, used by every way of starting one — quick,
+     daily, custom and rematch — and stored with the save. */
+  function startGame(cfg) {
+    UI.privacy = !!cfg.privacy;
+    SETTINGS.skipReactions = !!cfg.skipReactions;
+    SETTINGS.assaultLimit = cfg.assaultLimit || 0;
+    Meta.applyDifficulty(cfg.difficulty);
+    AI.seats = {};
+    const ss = cfg.seats.slice(0, cfg.count);
+    ss.forEach((s, i) => { if (s.type === 'ai') AI.seats[i] = s.ai; });
+
+    if (cfg.daily) Meta.seedDice(cfg.seed); else setRNG(null);
+    Meta.session = { config: cfg, daily: cfg.daily || null };
+    Meta.lastResult = null;
+    Meta.clearSave();
+
+    activateMap(cfg.map);
+    Rules.newGame(ss.map((s, i) => ({ name: NAMES[i], patron: s.patron })));
+    enterGame();
+
+    const firstHuman = ss.findIndex(s => s.type === 'human');
+    if (cfg.coach && firstHuman === 0) Coach.start(0);
+  }
+
+  const snapshotSeats = () => seats.map(s => ({ type: s.type, patron: s.patron, ai: s.ai }));
+  const firstRun = () => {
+    let seen = false;
+    try { seen = localStorage.getItem('apotheosis-tutorial-seen') === '1'; } catch (e) {}
+    return !seen;
+  };
+
+  $('#t-quick').addEventListener('click', () => { drawQuick(); drawDiff($('#q-diff')); show('title-quick'); });
+  $('#t-custom').addEventListener('click', () => { drawSeats(); drawDiff($('#c-diff')); show('title-custom'); });
+  $('#setup-howto').addEventListener('click', () => UI.openMenu());
+
+  $('#q-start').addEventListener('click', () => {
+    const quick = [{ type: 'human', patron: seats[0].patron, ai: 'warmonger' }]
+      .concat(Meta.rivalsFor(seats[0].patron));
+    startGame({ count: 4, seats: quick, map: 'default', assaultLimit: 0, skipReactions: false,
+                privacy: false, difficulty, coach: firstRun() });
   });
 
-  drawSeats();
+  $('#t-daily').addEventListener('click', () => {
+    const cfg = Meta.dailyConfig();
+    cfg.coach = false;
+    startGame(cfg);
+  });
+
+  $('#start').addEventListener('click', () => {
+    startGame({ count, seats: snapshotSeats(), map: $('#map-choice').value, assaultLimit,
+                skipReactions: $('#skip-reactions').checked, privacy: $('#privacy').checked,
+                difficulty, coach: $('#show-tutorial').checked });
+  });
+
+  $('#t-continue').addEventListener('click', () => {
+    const save = Meta.peekSave();
+    if (!save || !Meta.restore(save)) { Meta.clearSave(); drawHome(); return; }
+    enterGame();
+  });
+
+  /* "Rematch" on the result screen reloads the page (a fresh page is the one
+     reliable way to rebuild the board's static layers for a possibly
+     different map) and leaves the match description here to be picked up. */
+  Meta.rematch = function () {
+    try { sessionStorage.setItem('apotheosis-rematch', JSON.stringify(Meta.session.config)); } catch (e) {}
+    location.reload();
+  };
+
+  drawHome();
+  show('title-home');
+
+  let pending = null;
+  try {
+    pending = JSON.parse(sessionStorage.getItem('apotheosis-rematch') || 'null');
+    sessionStorage.removeItem('apotheosis-rematch');
+  } catch (e) {}
+  if (pending && pending.seats) {
+    if (pending.daily) { const d = Meta.dailyConfig(); d.coach = false; startGame(d); }
+    else { pending.coach = false; startGame(pending); }
+  }
 })();
 
 </script>
